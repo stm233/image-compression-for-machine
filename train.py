@@ -224,6 +224,8 @@ def test_epoch(epoch, test_dataloader, model, criterion):
     bpp_loss = AverageMeter()
     mse_loss = AverageMeter()
     aux_loss = AverageMeter()
+    objective_loss1 = AverageMeter()
+    objective_loss2 = AverageMeter()
 
     with torch.no_grad():
         for d in test_dataloader:
@@ -239,15 +241,23 @@ def test_epoch(epoch, test_dataloader, model, criterion):
             out_net = model(inputIMG)
             out_criterion = criterion(inputIMG, out_net, annotations)
 
+            # scale = d['scale']
+            # scale = scale.to(device)
+            # scores, labels, boxes = out_net["scores"], out_net["labels"], out_net["boxes"]
+            # boxes /= scale
+
             aux_loss.update(model.aux_loss())
             bpp_loss.update(out_criterion["bpp_loss"])
             loss.update(out_criterion["loss"])
             mse_loss.update(out_criterion["mse_loss"])
+            objective_loss1.update(out_criterion["obect_loss"][0])
+            objective_loss2.update(out_criterion["obect_loss"][1])
 
     print(
         f"Test epoch {epoch}: Average losses:"
-        f"\tLoss: {loss.avg[0]:.3f} |"
-        f"\tMSE loss: {mse_loss.avg * 255 :.3f} |"
+        f"\tLoss: {loss.avg.item():.3f} |"
+        # f"\tMSE loss: {mse_loss.avg * 255 :.3f} |"
+        f'\tobect loss: {objective_loss1.avg.item():.2f} {objective_loss2.avg.item():.2f}|'
         f"\tBpp loss: {bpp_loss.avg:.2f} |"
         f"\tAux loss: {aux_loss.avg:.2f}\n"
     )
@@ -308,7 +318,7 @@ def parse_args(argv):
     parser.add_argument(
         "--test-batch-size",
         type=int,
-        default=18,
+        default=200,
         help="Test batch size (default: %(default)s)",
     )
     parser.add_argument(
@@ -344,7 +354,7 @@ def parse_args(argv):
                          default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="",  # ./train0008/18.ckpt ./stf9_0045/5.ckpt
+                        default="./save_model/czigzag_1/8.ckpt",  # ./train0008/18.ckpt ./stf9_0045/5.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
     return args
@@ -432,27 +442,27 @@ def main(argv):
         checkpoint = torch.load(args.checkpoint, map_location=device)
         last_epoch = checkpoint["epoch"] + 1
         new_state_dict = checkpoint["state_dict"]
-        new_state_dict = OrderedDict()
-
-        for k, v in checkpoint["state_dict"].items():
-            # print(k)
-            if 'mu_Swin2' in k:
-                print(k)
-                continue
-
-            if 'sigma_Swin2' in k:
-                print(k)
-                continue
-
-            if 'LRP_Swin2' in k:
-                print(k)
-                continue
-
-            if 'mu_layers' in k:
-                print(k)
-                continue
-            # k = k[7:]
-            new_state_dict[k]=v
+        # new_state_dict = OrderedDict()
+        #
+        # for k, v in checkpoint["state_dict"].items():
+        #     # print(k)
+        #     if 'mu_Swin2' in k:
+        #         print(k)
+        #         continue
+        #
+        #     if 'sigma_Swin2' in k:
+        #         print(k)
+        #         continue
+        #
+        #     if 'LRP_Swin2' in k:
+        #         print(k)
+        #         continue
+        #
+        #     if 'mu_layers' in k:
+        #         print(k)
+        #         continue
+        #     # k = k[7:]
+        #     new_state_dict[k]=v
 
         net.load_state_dict(new_state_dict) # ,strict=False
 
