@@ -18,6 +18,7 @@ import random
 import shutil
 import sys
 import time
+import os
 
 import torch
 import torch.nn as nn
@@ -37,6 +38,8 @@ from compressai.models.retinanet.dataloader import CocoDataset, CSVDataset, coll
     Normalizer
 from compressai.models.retinanet import losses
 
+# file_dir = os.path.dirname(__file__)
+# sys.path.append(file_dir)
 
 class RateDistortionLoss(nn.Module):
     """Custom rate distortion loss with a Lagrangian parameter."""
@@ -196,7 +199,7 @@ def train_one_epoch(
         aux_loss.backward()
         aux_optimizer.step()
 
-        if i % 100 == 0:
+        if i % 1000 == 0:
             enc_time = time.time() - start
             start = time.time()
             print(
@@ -289,7 +292,7 @@ def parse_args(argv):
         "-n",
         "--num-workers",
         type=int,
-        default=6,
+        default=24,
         help="Dataloaders threads (default: %(default)s)",
     )
     parser.add_argument(
@@ -300,12 +303,12 @@ def parse_args(argv):
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=14, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=18, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",
         type=int,
-        default=14,
+        default=18,
         help="Test batch size (default: %(default)s)",
     )
     parser.add_argument(
@@ -326,7 +329,7 @@ def parse_args(argv):
         "--save", action="store_true", default=True, help="Save model to disk"
     )
     parser.add_argument(
-        "--save_path", type=str, default="./cnn2_100/", help="Where to Save model"
+        "--save_path", type=str, default="./save_model/czigzag_1/", help="Where to Save model"
     )
     parser.add_argument(
         "--seed", type=float, help="Set random seed for reproducibility"
@@ -341,7 +344,7 @@ def parse_args(argv):
                          default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="./cnn2_100/96.ckpt",  # ./train0008/18.ckpt ./stf9_0045/5.ckpt
+                        default="",  # ./train0008/18.ckpt ./stf9_0045/5.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
     return args
@@ -408,7 +411,7 @@ def main(argv):
     #     net = CustomDataParallel(net)
 
     optimizer, aux_optimizer = configure_optimizers(net, args)
-    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min", factor=0.3, patience=4)
+    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min", factor=0.3, patience=6)
     criterion = RateDistortionLoss(lmbda=args.lmbda)
 
     if args.teachercheckpoint:
@@ -495,4 +498,5 @@ def main(argv):
 
 
 if __name__ == "__main__":
+
     main(sys.argv[1:])

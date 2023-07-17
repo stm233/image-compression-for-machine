@@ -414,6 +414,7 @@ class studentResNet(nn.Module):
         finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates = None,None,None
 
         if not self.training:
+            print('bool training:', self.training)
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, img_batch)
 
