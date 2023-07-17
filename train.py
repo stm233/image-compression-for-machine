@@ -302,23 +302,23 @@ def parse_args(argv):
         "-n",
         "--num-workers",
         type=int,
-        default=24,
+        default=6,
         help="Dataloaders threads (default: %(default)s)",
     )
     parser.add_argument(
         "--lambda",
         dest="lmbda",
         type=float,
-        default=1,
+        default=0.1,
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=18, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=9, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",
         type=int,
-        default=200,
+        default=80,
         help="Test batch size (default: %(default)s)",
     )
     parser.add_argument(
@@ -339,7 +339,7 @@ def parse_args(argv):
         "--save", action="store_true", default=True, help="Save model to disk"
     )
     parser.add_argument(
-        "--save_path", type=str, default="./save_model/czigzag_1/", help="Where to Save model"
+        "--save_path", type=str, default="./save_model/czigzag_01/", help="Where to Save model"
     )
     parser.add_argument(
         "--seed", type=float, help="Set random seed for reproducibility"
@@ -354,7 +354,7 @@ def parse_args(argv):
                          default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="./save_model/czigzag_1/8.ckpt",  # ./train0008/18.ckpt ./stf9_0045/5.ckpt
+                        default="",  # ./save_model/czigzag_1/8.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
     return args
