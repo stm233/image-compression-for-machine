@@ -16,7 +16,7 @@ from PIL import Image
 import requests
 # from transformers import CLIPProcessor, CLIPVisionModel, CLIPVisionConfig
 
-from swinResidual import SwinTransformer2 
+from .swinResidual import SwinTransformer2
 # From Balle's tensorflow compression examples
 SCALES_MIN = 0.11
 SCALES_MAX = 256

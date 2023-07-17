@@ -17,6 +17,8 @@ git clone https://github.com/stm233/image-compression-for-machine.git ICM
 cd image-compression
 pip install -e .
 pip install -e '.[dev]'
+pip3 install git+https://github.com/waleedka/coco.git#subdirectory=PythonAPI
+
 ```
 
 ## Usage
