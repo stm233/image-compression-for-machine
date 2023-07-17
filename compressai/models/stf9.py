@@ -655,11 +655,11 @@ class SymmetricalTransFormer6(CompressionModel):
         self.teacherNet.training = True
         self.studentNet.training = True
 
-        teachercheckpoint = "/home/tianma/Documents/STF-main/coco_resnet_50_map_0_335_state_dict.pt"
-        print("Loading", teachercheckpoint)
-        checkpoint = torch.load(teachercheckpoint, map_location='cuda')
-        self.teacherNet.load_state_dict(checkpoint, strict=True)  #
-        self.studentNet.load_state_dict(checkpoint, strict=True)
+        # teachercheckpoint = "/home/tianma/Documents/STF-main/coco_resnet_50_map_0_335_state_dict.pt"
+        # print("Loading", teachercheckpoint)
+        # checkpoint = torch.load(teachercheckpoint, map_location='cuda')
+        # self.teacherNet.load_state_dict(checkpoint, strict=True)  #
+        # self.studentNet.load_state_dict(checkpoint, strict=True)
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
@@ -798,120 +798,120 @@ class SymmetricalTransFormer6(CompressionModel):
 
     def forward(self, x):
         """Forward function."""
-        # compressH, Teacher_output_features, Teacher_classification, Teacher_regression, Teacher_anchors = self.teacherNet(x)
-        compressH, Teacher_output_features, Teacher_classification, Teacher_regression, Teacher_anchors = None, None, None, None, None
-        # inputIMGs = x.clone()
-        # x = self.patch_embed(x)
-        #
-        # Wh, Ww = x.size(2), x.size(3)
-        # x = x.flatten(2).transpose(1, 2)
-        # x = self.pos_drop(x)
-        # for i in range(self.num_layers):
-        #     layer = self.layers[i]
-        #     x, Wh, Ww = layer(x, Wh, Ww)
-        #
-        # y = x
-        # C = self.embed_dim * 8
-        # y = y.view(-1, Wh, Ww, C).permute(0, 3, 1, 2).contiguous()
-        # y_shape = y.shape[2:]
-        #
-        # z = self.h_a(y)
-        # _, z_likelihoods = self.entropy_bottleneck(z)
-        # z_offset = self.entropy_bottleneck._get_medians()
-        # z_tmp = z - z_offset
-        # z_hat = ste_round(z_tmp) + z_offset
-        #
-        # latent_scales = self.h_scale_s(z_hat)
-        # latent_means = self.h_mean_s(z_hat)
-        # B,C,H,W = latent_scales.shape
-        # number = 2
-        #
-        # y_zigzag, num_H, num_W = self.ZigzagSplits(y, self.num_slices)
-        # scales_zigzag, _ , _    = self.ZigzagSplits(latent_scales,self.num_slices)
-        # means_zigzag, _ , _   = self.ZigzagSplits(latent_means,self.num_slices)
-        #
-        # # y_slices = y.chunk(self.num_slices, 1)
-        # y_hat_slices = []
-        # y_likelihood = []
-        #
-        # for slice_index in range(self.num_slices* num_H* num_W):
-        #     # support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices])
-        #     support_slices = (y_hat_slices if self.max_support_slices > slice_index else y_hat_slices[slice_index-self.max_support_slices:])
-        #
-        #     support_num = self.support_num
-        #     # meanInput = ([means_zigzag[:,slice_index:slice_index+self.max_support_slices,:,:,:]] if slice_index > slice_index else y_hat_slices[slice_index-self.max_support_slices:])
-        #     if slice_index+support_num > self.num_slices* num_H* num_W:
-        #         meanInput = means_zigzag[:,-support_num:,:,:,:].view(-1,384*support_num//self.num_slices,(H//number),(W//number))
-        #     else:
-        #         meanInput = means_zigzag[:,slice_index:slice_index+support_num,:,:,:].view(-1,384*support_num//self.num_slices,(H//number),(W//number))
-        #     mean_support = torch.cat([meanInput] + support_slices, dim=1)
-        #     # print(slice_index,'support_slices',len(support_slices),mean_support.shape)
-        #     mu = self.cc_mean_transforms2[slice_index](mean_support)
-        #     # mu = mu[:, :, :y_shape[0], :y_shape[1]]
-        #
-        #     if slice_index+support_num > self.num_slices* num_H* num_W:
-        #         scaleInput = scales_zigzag[:,-support_num:,:,:,:].view(-1,384*support_num//self.num_slices,(H//number),(W//number))
-        #     else:
-        #         scaleInput = scales_zigzag[:,slice_index:slice_index+support_num,:,:,:].view(-1,384*support_num//self.num_slices,(H//number),(W//number))
-        #     # scaleInput = scales_zigzag.view(-1,384*number*number,(H//number),(W//number))
-        #     scale_support = torch.cat([scaleInput] + support_slices, dim=1)
-        #     scale = self.cc_scale_transforms2[slice_index](scale_support)
-        #     # scale = scale[:, :, :y_shape[0], :y_shape[1]]
-        #
-        #     # mu1 = mu.clone()
-        #     # mu1 = mu1.permute(0, 2, 3, 1).contiguous().view(-1, (H//number)*(W//number), 384 //self.num_slices)
-        #     # for i in range(self.num_mu):
-        #     #     mu_layer = self.mu_Swin2[slice_index][i]#.to(y.device)
-        #     #     mu1, _, _ = mu_layer(mu1, (H//number), (W//number))
-        #     #
-        #     # mu = mu + mu1.view(-1, (H//number), (W//number), 384 //self.num_slices).permute(0, 3, 1, 2).contiguous()
-        #
-        #     # scale1 = scale.clone()
-        #     # scale1 = scale1.permute(0, 2, 3, 1).contiguous().view(-1,  (H//number)*(W//number), 384 //self.num_slices)
-        #     # for i in range(self.num_sigma):
-        #     #     layer = self.sigma_Swin2[slice_index][i]#.to(y.device)
-        #     #     scale1, _, _ = layer(scale1,(H//number), (W//number))
-        #     #
-        #     # scale = scale + scale1.view(-1, (H//number), (W//number), 384 //self.num_slices).permute(0, 3, 1, 2).contiguous()
-        #
-        #     _, y_slice_likelihood = self.gaussian_conditional(y_zigzag[:,slice_index,:,:,:], scale, mu)
-        #
-        #     y_likelihood.append(y_slice_likelihood)
-        #     y_hat_slice = ste_round(y_zigzag[:,slice_index,:,:,:] - mu) + mu
-        #
-        #     lrp_support = torch.cat([mean_support, y_hat_slice], dim=1)
-        #     lrp = self.lrp_transforms2[slice_index](lrp_support)
-        #
-        #     # lrp1 = lrp.clone()
-        #     # lrp1 = lrp1.permute(0, 2, 3, 1).contiguous().view(-1, (H//number)*(W//number), 384 //self.num_slices)
-        #     # for i in range(self.num_LRP):
-        #     #     layer = self.LRP_Swin2[slice_index][i]#.to(y.device)
-        #     #     lrp1, _, _ = layer(lrp1, (H//number), (W//number))
-        #     #
-        #     # lrp = lrp + lrp1.view(-1, (H//number), (W//number), 384 //self.num_slices).permute(0, 3, 1, 2).contiguous()
-        #
-        #
-        #     lrp = 0.5 * torch.tanh(lrp)
-        #     y_hat_slice += lrp
-        #
-        #
-        #     y_hat_slices.append(y_hat_slice)
-        #
-        # # y_hat = torch.cat(y_hat_slices, dim=1)
-        # y_hat = torch.cat(y_hat_slices, dim=1).view(-1,self.num_slices* num_H* num_W,384 //self.num_slices,(H//number),(W//number))
-        # y_hat = self.ZigzagReverse(y_hat,self.num_slices, number, number)
-        # y_likelihoods = torch.cat(y_likelihood, dim=1)
-        #
-        # y_hat = y_hat.permute(0, 2, 3, 1).contiguous().view(-1, Wh*Ww, C)
-        # for i in range(self.num_layers):
-        #     layer = self.syn_layers[i]
-        #     y_hat, Wh, Ww = layer(y_hat, Wh, Ww)
-        #
-        # decompressH = self.end_conv(y_hat.view(-1, Wh, Ww, self.embed_dim).permute(0, 3, 1, 2).contiguous())
-        #
-        # Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(decompressH)
-        y_likelihoods, z_likelihoods, Student_classification, Student_regression = None,None,None,None
-        Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(x)
+        compressH, Teacher_output_features, Teacher_classification, Teacher_regression, Teacher_anchors = self.teacherNet(x)
+        # compressH, Teacher_output_features, Teacher_classification, Teacher_regression, Teacher_anchors = None, None, None, None, None
+        inputIMGs = x.clone()
+        x = self.patch_embed(x)
+
+        Wh, Ww = x.size(2), x.size(3)
+        x = x.flatten(2).transpose(1, 2)
+        x = self.pos_drop(x)
+        for i in range(self.num_layers):
+            layer = self.layers[i]
+            x, Wh, Ww = layer(x, Wh, Ww)
+
+        y = x
+        C = self.embed_dim * 8
+        y = y.view(-1, Wh, Ww, C).permute(0, 3, 1, 2).contiguous()
+        y_shape = y.shape[2:]
+
+        z = self.h_a(y)
+        _, z_likelihoods = self.entropy_bottleneck(z)
+        z_offset = self.entropy_bottleneck._get_medians()
+        z_tmp = z - z_offset
+        z_hat = ste_round(z_tmp) + z_offset
+
+        latent_scales = self.h_scale_s(z_hat)
+        latent_means = self.h_mean_s(z_hat)
+        B,C,H,W = latent_scales.shape
+        number = 2
+
+        y_zigzag, num_H, num_W = self.ZigzagSplits(y, self.num_slices)
+        scales_zigzag, _ , _    = self.ZigzagSplits(latent_scales,self.num_slices)
+        means_zigzag, _ , _   = self.ZigzagSplits(latent_means,self.num_slices)
+
+        # y_slices = y.chunk(self.num_slices, 1)
+        y_hat_slices = []
+        y_likelihood = []
+
+        for slice_index in range(self.num_slices* num_H* num_W):
+            # support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices])
+            support_slices = (y_hat_slices if self.max_support_slices > slice_index else y_hat_slices[slice_index-self.max_support_slices:])
+
+            support_num = self.support_num
+            # meanInput = ([means_zigzag[:,slice_index:slice_index+self.max_support_slices,:,:,:]] if slice_index > slice_index else y_hat_slices[slice_index-self.max_support_slices:])
+            if slice_index+support_num > self.num_slices* num_H* num_W:
+                meanInput = means_zigzag[:,-support_num:,:,:,:].view(-1,384*support_num//self.num_slices,(H//number),(W//number))
+            else:
+                meanInput = means_zigzag[:,slice_index:slice_index+support_num,:,:,:].view(-1,384*support_num//self.num_slices,(H//number),(W//number))
+            mean_support = torch.cat([meanInput] + support_slices, dim=1)
+            # print(slice_index,'support_slices',len(support_slices),mean_support.shape)
+            mu = self.cc_mean_transforms2[slice_index](mean_support)
+            # mu = mu[:, :, :y_shape[0], :y_shape[1]]
+
+            if slice_index+support_num > self.num_slices* num_H* num_W:
+                scaleInput = scales_zigzag[:,-support_num:,:,:,:].view(-1,384*support_num//self.num_slices,(H//number),(W//number))
+            else:
+                scaleInput = scales_zigzag[:,slice_index:slice_index+support_num,:,:,:].view(-1,384*support_num//self.num_slices,(H//number),(W//number))
+            # scaleInput = scales_zigzag.view(-1,384*number*number,(H//number),(W//number))
+            scale_support = torch.cat([scaleInput] + support_slices, dim=1)
+            scale = self.cc_scale_transforms2[slice_index](scale_support)
+            # scale = scale[:, :, :y_shape[0], :y_shape[1]]
+
+            # mu1 = mu.clone()
+            # mu1 = mu1.permute(0, 2, 3, 1).contiguous().view(-1, (H//number)*(W//number), 384 //self.num_slices)
+            # for i in range(self.num_mu):
+            #     mu_layer = self.mu_Swin2[slice_index][i]#.to(y.device)
+            #     mu1, _, _ = mu_layer(mu1, (H//number), (W//number))
+            #
+            # mu = mu + mu1.view(-1, (H//number), (W//number), 384 //self.num_slices).permute(0, 3, 1, 2).contiguous()
+
+            # scale1 = scale.clone()
+            # scale1 = scale1.permute(0, 2, 3, 1).contiguous().view(-1,  (H//number)*(W//number), 384 //self.num_slices)
+            # for i in range(self.num_sigma):
+            #     layer = self.sigma_Swin2[slice_index][i]#.to(y.device)
+            #     scale1, _, _ = layer(scale1,(H//number), (W//number))
+            #
+            # scale = scale + scale1.view(-1, (H//number), (W//number), 384 //self.num_slices).permute(0, 3, 1, 2).contiguous()
+
+            _, y_slice_likelihood = self.gaussian_conditional(y_zigzag[:,slice_index,:,:,:], scale, mu)
+
+            y_likelihood.append(y_slice_likelihood)
+            y_hat_slice = ste_round(y_zigzag[:,slice_index,:,:,:] - mu) + mu
+
+            lrp_support = torch.cat([mean_support, y_hat_slice], dim=1)
+            lrp = self.lrp_transforms2[slice_index](lrp_support)
+
+            # lrp1 = lrp.clone()
+            # lrp1 = lrp1.permute(0, 2, 3, 1).contiguous().view(-1, (H//number)*(W//number), 384 //self.num_slices)
+            # for i in range(self.num_LRP):
+            #     layer = self.LRP_Swin2[slice_index][i]#.to(y.device)
+            #     lrp1, _, _ = layer(lrp1, (H//number), (W//number))
+            #
+            # lrp = lrp + lrp1.view(-1, (H//number), (W//number), 384 //self.num_slices).permute(0, 3, 1, 2).contiguous()
+
+
+            lrp = 0.5 * torch.tanh(lrp)
+            y_hat_slice += lrp
+
+
+            y_hat_slices.append(y_hat_slice)
+
+        # y_hat = torch.cat(y_hat_slices, dim=1)
+        y_hat = torch.cat(y_hat_slices, dim=1).view(-1,self.num_slices* num_H* num_W,384 //self.num_slices,(H//number),(W//number))
+        y_hat = self.ZigzagReverse(y_hat,self.num_slices, number, number)
+        y_likelihoods = torch.cat(y_likelihood, dim=1)
+
+        y_hat = y_hat.permute(0, 2, 3, 1).contiguous().view(-1, Wh*Ww, C)
+        for i in range(self.num_layers):
+            layer = self.syn_layers[i]
+            y_hat, Wh, Ww = layer(y_hat, Wh, Ww)
+
+        decompressH = self.end_conv(y_hat.view(-1, Wh, Ww, self.embed_dim).permute(0, 3, 1, 2).contiguous())
+
+        Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(decompressH)
+        # y_likelihoods, z_likelihoods, Student_classification, Student_regression = None,None,None,None
+        # Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(x)
         return {
             "compressH": compressH,
             "decompressH": Student_compressH,

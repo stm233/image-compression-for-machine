@@ -18,3 +18,45 @@ cd image-compression
 pip install -e .
 pip install -e '.[dev]'
 ```
+
+## Usage
+
+### Objective Detection
+
+#### Dataset
+
+we choose the COCO2017 to train and test our model.
+
+The way to download the COCO2017
+```
+mkdir ~/dataset/coco2017/ -p
+cd ~/dataset/coco2017/
+wget http://images.cocodataset.org/zips/train2017.zip ./
+wget http://images.cocodataset.org/zips/val2017.zip ./
+wget http://images.cocodataset.org/annotations/annotations_trainval2017.zip ./
+unzip train2017.zip
+unzip val2017.zip
+unzip annotations_trainval2017.zip
+```
+
+#### Model
+
+cnn : CNNs model to compress Image (original paper model)
+
+cnn2 : CNNs model to compress the feature map
+
+stf: transformer model to compress Image (origianl paper mdoel)
+
+stf2 : 3D zigzag model to compress Image
+
+stf3 : apply the CLIP model to extract the feature map
+
+stf4 : Masked Transformer for 3d zigzag
+
+stf5 : 2d zigzag mode to compress Image
+
+stf6 : 2d zigzag + LRCP (latent residual cross-attention prediction)
+
+stf7 and stf8: different window size of Swin transformer based on stf6
+
+

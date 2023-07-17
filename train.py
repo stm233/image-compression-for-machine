@@ -262,13 +262,13 @@ def parse_args(argv):
     parser.add_argument(
         "-m",
         "--model",
-        default="cnn2",
+        default="stf9",
         choices=models.keys(),
         help="Model architecture (default: %(default)s)",
     )
     parser.add_argument(
         "-d", "--dataset", type=str, 
-        default='/media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/supervised-compression-main/dataset/coco2017/',
+        default='/data/Dataset/coco2017/',
         help="Training dataset"
     )
     parser.add_argument(
@@ -281,7 +281,7 @@ def parse_args(argv):
     parser.add_argument(
         "-lr",
         "--learning-rate",
-        default=1e-5,
+        default=1e-4,
         type=float,
         help="Learning rate (default: %(default)s)",
     )
@@ -338,7 +338,7 @@ def parse_args(argv):
         help="gradient clipping max norm (default: %(default)s",
     )
     parser.add_argument("--teachercheckpoint",
-                         default="./coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
+                         default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
                         default="./cnn2_100/96.ckpt",  # ./train0008/18.ckpt ./stf9_0045/5.ckpt
@@ -370,7 +370,7 @@ def main(argv):
     # train_dataset = ImageFolder(args.dataset, split="train", transform=train_transforms)
     # test_dataset = ImageFolder(args.dataset, split="test", transform=test_transforms)
 
-    dataset_train = CocoDataset(args.dataset, set_name='val2017',
+    dataset_train = CocoDataset(args.dataset, set_name='train2017',
                                 transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
     dataset_val = CocoDataset(args.dataset, set_name='val2017',
                               transform=transforms.Compose([Normalizer(), Resizer()]))
@@ -411,16 +411,17 @@ def main(argv):
     lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min", factor=0.3, patience=4)
     criterion = RateDistortionLoss(lmbda=args.lmbda)
 
-    # if args.teachercheckpoint:
-    #     print("Loading", args.teachercheckpoint)
-    #     checkpoint = torch.load(args.teachercheckpoint, map_location=device)
-    #     new_state_dict = OrderedDict()
-    #
-    #     for k, v in checkpoint.items():
-    #         # k = k[13:] # remove 'backbone.body'
-    #         k = 'teacherNet.' + k # add our network name
-    #         new_state_dict[k]=v
-    #     net.load_state_dict(new_state_dict,strict=False)  #
+    if args.teachercheckpoint:
+        print("Loading", args.teachercheckpoint)
+        checkpoint = torch.load(args.teachercheckpoint, map_location=device)
+        # new_state_dict = OrderedDict()
+        #
+        # for k, v in checkpoint.items():
+        #     # k = k[13:] # remove 'backbone.body'
+        #     k = 'teacherNet.' + k # add our network name
+        #     new_state_dict[k]=v
+        net.teacherNet.load_state_dict(checkpoint,strict=False)  #
+        net.studentNet.load_state_dict(checkpoint, strict=False)
 
     last_epoch = 0
     if args.checkpoint:  # load from previous checkpoint
@@ -471,7 +472,7 @@ def main(argv):
             epoch,
             args.clip_max_norm,
         )
-        if epoch % 2 == 0:
+        if epoch % 1 == 0:
             loss = test_epoch(epoch, test_dataloader, net, criterion)
             lr_scheduler.step(loss)
 
