@@ -43,8 +43,8 @@ from pycocotools.cocoeval import COCOeval
 import gc
 
 # from ptflops import get_model_complexity_info
-from fvcore.nn import flop_count_table
-from fvcore.nn import FlopCountAnalysis
+# from fvcore.nn import flop_count_table
+# from fvcore.nn import FlopCountAnalysis
 
 torch.backends.cudnn.deterministic = True
 torch.set_num_threads(1)
@@ -278,7 +278,7 @@ def eval_model(model, filepaths, entropy_estimation=True, half=False, recon_path
             # bpp = 0
             bpps += float(bpp)
             pixels += int(num_pixels)
-            print(index,'/',len(filepaths), 'bpp = ',bpp,'pixels = ',num_pixels)
+            # print(index,'/',len(filepaths), 'bpp = ',bpp,'pixels = ',num_pixels)
             # print('{}/{}'.format(index, len(filepaths)), end='\r')
 
             scores = scores.cpu()
@@ -377,7 +377,7 @@ def setup_args():
     parent_parser.add_argument(
         "-a",
         "--architecture",
-        default='cnn2',
+        default='stf9',
         type=str,
         choices=models.keys(),
         help="model architecture",
@@ -413,7 +413,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",
-            default='/home/tianma/Documents/STF-main/cnn2_100/98.ckpt',
+            default='/home/tianma/Documents/ICM/save_model/czigzag_5/25.ckpt',
             dest="paths",
             type=str,
             nargs="*",
@@ -444,7 +444,7 @@ def main(argv):
     if args.cuda and torch.cuda.is_available():
         model = model.to("cuda:0")
 
-    model.update(force=True)
+    # model.update(force=True)
 
     metrics = eval_model(model, filepaths, args.entropy_estimation, args.half, args.recon_path)
     # for run in runs:

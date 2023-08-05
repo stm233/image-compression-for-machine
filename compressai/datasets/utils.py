@@ -87,3 +87,71 @@ class ImageFolder(Dataset):
 
     def __len__(self):
         return len(self.samples)
+
+
+class ImageFolder_Czigzag(Dataset):
+    """Load an image folder database. Training and testing image samples
+    are respectively stored in separate directories:
+
+    .. code-block::
+
+        - rootdir/
+            - train/
+                - img000.png
+                - img001.png
+            - test/
+                - img000.png
+                - img001.png
+
+    Args:
+        root (string): root directory of the dataset
+        transform (callable, optional): a function or transform that takes in a
+            PIL image and returns a transformed version
+        split (string): split mode ('train' or 'val')
+    """
+
+    def __init__(self, root, transform=None, split="train"):
+        splitdir = Path(root) / split / 'original'
+
+        if not splitdir.is_dir():
+            raise RuntimeError(f'Invalid directory "{root}"')
+
+        self.samples = [f for f in splitdir.iterdir() if f.is_file()]
+
+        self.transform = transform
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            img: `PIL.Image.Image` or transformed `PIL.Image.Image`.
+        """
+        img = Image.open(self.samples[index]).convert("RGB")
+        # print(self.samples[index].resolve() )
+        up_x4_paths = str(self.samples[index].resolve()).split('/')
+        up_x4_paths[-2] = 'Large_GAN_x4_decompressed_015_x4'
+
+        up_x4_paths = self.samples[index].parent.parent / 'Large_GAN_x4_decompressed_015_x4'
+        up_x4_path = up_x4_paths / self.samples[index].name
+        # print(up_x4_path)
+        # if up_x4_path.suffix != 'jpg' :
+        #     up_x4_path = up_x4_path.parent / (up_x4_path.stem + '.jpg')
+        # up_x4_path = os.path.join(up_x4_paths)
+        # print(up_x4_path)
+        up_x4 = Image.open(up_x4_path).convert("RGB")
+        # clipProcessor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
+        if self.transform:
+            # img = clipProcessor(images=img, return_tensors="pt")
+            # print(img['pixel_values'].shape)
+            img = self.transform(img)
+            up_x4 = self.transform(up_x4)
+            # print(img.shape)
+
+            # return img
+        return img, up_x4
+
+    def __len__(self):
+        return len(self.samples)

@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .utils import ImageFolder
+from .utils import ImageFolder,ImageFolder_Czigzag
 
-__all__ = ["ImageFolder"]
+__all__ = ["ImageFolder",'ImageFolder_Czigzag']
