@@ -313,7 +313,7 @@ def parse_args(argv):
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=9, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=14, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",
@@ -354,7 +354,7 @@ def parse_args(argv):
                          default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="",  # ./save_model/czigzag_1/8.ckpt
+                        default="./save_model/czigzag_1/8.ckpt",  # ./save_model/czigzag_1/8.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
     return args
