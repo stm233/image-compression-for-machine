@@ -68,7 +68,7 @@ class RateDistortionLoss(nn.Module):
         #                                    output["Student_regression"],
         #                                    output["Student_anchors"],
         #                                    target)
-        out["loss"] =  self.lmbda * out["mse_loss"] + out["bpp_loss"]
+        out["loss"] =  self.lmbda * 255 ** 2 * out["mse_loss"] + out["bpp_loss"]
 
         return out
 
@@ -198,7 +198,7 @@ def train_one_epoch(
         aux_loss.backward()
         aux_optimizer.step()
 
-        if i % 200 == 0:
+        if i % 2000 == 0:
             enc_time = time.time() - start
             start = time.time()
             print(
@@ -206,7 +206,7 @@ def train_one_epoch(
                 f"{i*len(original_img)}/{len(train_dataloader.dataset)}"
                 f" ({100. * i / len(train_dataloader):.0f}%)]"
                 f'\tLoss: {out_criterion["loss"].item():.3f} |'
-                f'\tMSE loss: {out_criterion["mse_loss"].item() :.3f} |'
+                f'\tMSE loss: {out_criterion["mse_loss"].item()* 255 ** 2 :.3f} |'
                 f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
                 # f'\tfeature loss: {out_criterion["feature_loss"].item():.2f} |'
                 # f'\tobect loss: {out_criterion["obect_loss"][0].item():.2f} {out_criterion["obect_loss"][1].item():.2f}|'
@@ -259,7 +259,7 @@ def test_epoch(epoch, test_dataloader, model, criterion):
     print(
         f"Test epoch {epoch}: Average losses:"
         f"\tLoss: {loss.avg.item():.3f} |"
-        f"\tMSE loss: {mse_loss.avg * 255 :.3f} |"
+        f"\tMSE loss: {mse_loss.avg * 255 ** 2 :.3f} |"
         # f'\tobect loss: {objective_loss1.avg.item():.2f} {objective_loss2.avg.item():.2f}|'
         f"\tBpp loss: {bpp_loss.avg:.2f} |"
         f"\tAux loss: {aux_loss.avg:.2f}\n"
@@ -316,7 +316,7 @@ def parse_args(argv):
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=4, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=14, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",

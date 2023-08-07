@@ -137,7 +137,7 @@ def inference(model, x, filename, recon_path):
 
 @torch.no_grad()
 def inference_entropy_estimation(model, x, context, filename, recon_path):
-    input_image = x['img']
+    input_image = x
     input_image = input_image.unsqueeze(0)
     # begin = 100
     # size = 640
@@ -194,17 +194,10 @@ def inference_entropy_estimation(model, x, context, filename, recon_path):
         # print(x_padded.shape,context.shape)
         out_net = model.forward(x_padded,context)
 
-    scale = x['scale']
-    scores, labels, boxes = out_net["scores"], out_net["labels"], out_net["boxes"]
-    boxes /= scale
-
-
-
-
-    # grid_img = out_net["x_hat"]
-    # grid_img = F.pad(
-    #     grid_img, (-padding_left, -padding_right, -padding_top, -padding_bottom)
-    # )
+    grid_img = out_net["x_hat"]
+    grid_img = F.pad(
+        grid_img, (-padding_left, -padding_right, -padding_top, -padding_bottom)
+    )
     
     elapsed_time = time.time() - start
 
@@ -215,17 +208,17 @@ def inference_entropy_estimation(model, x, context, filename, recon_path):
     )
 
     # ms_ssim(x, grid_img, data_range=1.0)
-    print(filename,"bpp", bpp.item())
+    print(filename,"bpp", bpp.item(),psnr(input_image, grid_img),ms_ssim(input_image, grid_img, data_range=1.0))
     # print('num_pixels',num_pixels)
     # for likelihoods in out_net["likelihoods"].values():
     #     tmpBPP = torch.log(likelihoods).sum() / (-math.log(2) * num_pixels)
     #     print(tmpBPP)
 
-    # reconstruct(grid_img, filename, recon_path)
+    reconstruct(grid_img, filename, recon_path)
 
     return {
-        # "psnr": psnr(x, grid_img), # out_net["x_hat"]
-        # "ms-ssim": ms_ssim(x, grid_img, data_range=1.0).item(),
+        "psnr": psnr(input_image, grid_img), # out_net["x_hat"]
+        "ms-ssim": ms_ssim(input_image, grid_img, data_range=1.0).item(),
         "bpp": bpp.item(),
         "encoding_time": elapsed_time / 2.0,  # broad estimation
         "decoding_time": elapsed_time / 2.0,
@@ -364,6 +357,34 @@ def eval_model(model, filepaths, entropy_estimation=True, half=False, recon_path
 
     return metrics
 
+def eval_model_image_compression(model, filepaths, entropy_estimation=False, half=False, recon_path='reconstruction'):
+    device = next(model.parameters()).device
+    metrics = defaultdict(float)
+    for f in filepaths:
+        _filename = f.split("/")[-1]
+
+        x = read_image(f).to(device)
+        # context = None
+
+        context_path = f.split("/")
+        context_path[-2] = 'L_GAN_x4_decompress'
+        context_path = os.path.join(*context_path)
+        # print(f)
+        # print(context_path)
+        context = read_image('/'+context_path).to(device)
+        if not entropy_estimation:
+            if half:
+                model = model.half()
+                x = x.half()
+            rv = inference_entropy_estimation(model, x,context , _filename, recon_path)
+        else:
+            rv = inference_entropy_estimation(model, x,context , _filename, recon_path)
+        for k, v in rv.items():
+            metrics[k] += v
+    for k, v in metrics.items():
+        metrics[k] = v / len(filepaths)
+
+    return metrics
 
 def setup_args():
     parent_parser = argparse.ArgumentParser()
@@ -372,12 +393,12 @@ def setup_args():
     # original : /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/supervised-compression-main/dataset/coco2017/
     # BGP : /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/BPG_val2017/decompress/qp41
     # VTM :  /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/val2017/decompress
-    parent_parser.add_argument("-d", "--dataset",default='/media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/supervised-compression-main/dataset/coco2017/', type=str, help="dataset path")
-    parent_parser.add_argument("-r", "--recon_path", type=str, default="reconstruction", help="where to save recon img")
+    parent_parser.add_argument("-d", "--dataset",default='/media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/testfolder/testdata/kodim/original/', type=str, help="dataset path")
+    parent_parser.add_argument("-r", "--recon_path", type=str, default="/home/tianma/Documents/ICM/save_model/decodedImages/", help="where to save recon img")
     parent_parser.add_argument(
         "-a",
         "--architecture",
-        default='stf9',
+        default='czigzag',
         type=str,
         choices=models.keys(),
         help="model architecture",
@@ -413,7 +434,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",
-            default='/home/tianma/Documents/ICM/save_model/czigzag_5/25.ckpt',
+            default='/home/tianma/Documents/ICM/save_model/czigzag_0035/7.ckpt',
             dest="paths",
             type=str,
             nargs="*",
@@ -426,55 +447,82 @@ def main(argv):
     parser = setup_args()
     args = parser.parse_args(argv)
 
-    filepaths = CocoDataset(args.dataset, set_name='val2017', transform=transforms.Compose([Normalizer(), Resizer()]))
-    # filepaths = collect_images(args.dataset)
-    # if len(filepaths) == 0:
-    #     print("Error: no images found in directory.", file=sys.stderr)
-    #     sys.exit(1)
+    # evaluation the ICM model
+    if args.architecture == 'stf9':
+        filepaths = CocoDataset(args.dataset, set_name='val2017', transform=transforms.Compose([Normalizer(), Resizer()]))
+        compressai.set_entropy_coder(args.entropy_coder)
 
-    compressai.set_entropy_coder(args.entropy_coder)
+        runs = args.paths
+        opts = (args.architecture,)
+        load_func = load_checkpoint
+        log_fmt = "\rEvaluating {run:s}"
 
-    runs = args.paths
-    opts = (args.architecture,)
-    load_func = load_checkpoint
-    log_fmt = "\rEvaluating {run:s}"
+        results = defaultdict(list)
+        model = load_func(*opts, runs)
+        if args.cuda and torch.cuda.is_available():
+            model = model.to("cuda:0")
 
-    results = defaultdict(list)
-    model = load_func(*opts, runs)
-    if args.cuda and torch.cuda.is_available():
-        model = model.to("cuda:0")
+        metrics = eval_model(model, filepaths, args.entropy_estimation, args.half, args.recon_path)
 
-    # model.update(force=True)
+        if args.verbose:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
 
-    metrics = eval_model(model, filepaths, args.entropy_estimation, args.half, args.recon_path)
-    # for run in runs:
-    #     if args.verbose:
-    #         sys.stderr.write(log_fmt.format(*opts, run=run))
-    #         sys.stderr.flush()
-    #     model = load_func(*opts, run)
-    #     if args.cuda and torch.cuda.is_available():
-    #         model = model.to("cuda:0")
-    #
-    #     model.update(force=True)
-    #
-    #     metrics = eval_model(model, filepaths, args.entropy_estimation, args.half, args.recon_path)
-        # for k, v in metrics.items():
-        #     results[k].append(v)
+        description = (
+            "entropy estimation" if args.entropy_estimation else args.entropy_coder
+        )
+        output = {
+            "name": args.architecture,
+            "description": f"Inference ({description})",
+            "results": results,
+        }
 
-    if args.verbose:
-        sys.stderr.write("\n")
-        sys.stderr.flush()
+        print(json.dumps(output, indent=2))
 
-    description = (
-        "entropy estimation" if args.entropy_estimation else args.entropy_coder
-    )
-    output = {
-        "name": args.architecture,
-        "description": f"Inference ({description})",
-        "results": results,
-    }
+    else:
+        # image compression model
+        filepaths = collect_images(args.dataset)
+        if len(filepaths) == 0:
+            print("Error: no images found in directory.", file=sys.stderr)
+            sys.exit(1)
 
-    print(json.dumps(output, indent=2))
+        compressai.set_entropy_coder(args.entropy_coder)
+
+        runs = args.paths
+        opts = (args.architecture,)
+        load_func = load_checkpoint
+        log_fmt = "\rEvaluating {run:s}"
+
+        results = defaultdict(list)
+        # for run in runs:
+        #     if args.verbose:
+        #         sys.stderr.write(log_fmt.format(*opts, run=run))
+        #         sys.stderr.flush()
+        model = load_func(*opts, runs)
+        if args.cuda and torch.cuda.is_available():
+            model = model.to("cuda")
+
+            model.update(force=True)
+
+        metrics = eval_model_image_compression(model, filepaths, args.entropy_estimation, args.half, args.recon_path)
+        for k, v in metrics.items():
+            results[k].append(v)
+
+        if args.verbose:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+
+        description = (
+            "entropy estimation" if args.entropy_estimation else args.entropy_coder
+        )
+        output = {
+            "name": args.architecture,
+            "description": f"Inference ({description})",
+            "results": results,
+        }
+
+        print(json.dumps(output, indent=2))
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
