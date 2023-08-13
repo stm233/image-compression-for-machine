@@ -166,8 +166,8 @@ class WindowAttention_context(nn.Module):
 
 
         B_, N, C = x.shape
-        query = self.q(context).reshape(B_, N, 1, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4).contiguous()
-        kv = self.kv(x).reshape(B_, N, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4).contiguous()
+        query = self.q(x).reshape(B_, N, 1, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4).contiguous()
+        kv = self.kv(context).reshape(B_, N, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4).contiguous()
         q, k, v = query[0], kv[0], kv[1]  # make torchscript happy (cannot use tensor as tuple)
 
         q = q * self.scale
@@ -970,7 +970,7 @@ class conditionalZigzag(CompressionModel):
             # print('x shape',x.shape)
             # print('up_x4 shape',up_x4.shape)
             layer = self.layers[i]
-            x, Wh, Ww = layer(up_x4,x, Wh, Ww)
+            x, Wh, Ww = layer(x,up_x4, Wh, Ww)
             en_conv = self.encoder_context[i]
             if i != self.num_layers - 1:
                 up_x4 = up_x4.view(-1, Wh*2, Ww*2, self.embed_dim * 2 **i).permute(0, 3, 1, 2).contiguous()
@@ -996,7 +996,7 @@ class conditionalZigzag(CompressionModel):
         z = y
         hyper_up_x4 = hyper_up_x4.flatten(2).transpose(1, 2)
         layer = self.hyper_encoder_layers[0]
-        z, Wh, Ww = layer(hyper_up_x4,z, Wh, Ww)
+        z, Wh, Ww = layer(z,hyper_up_x4, Wh, Ww)
         hyper_up_x4 = hyper_up_x4.view(-1, Wh, Ww, 384).permute(0, 3, 1, 2).contiguous()
         hyper_up_x4_2 = self.hyper_encoder_Conv1(hyper_up_x4)
         hyper_up_x4_2 = hyper_up_x4_2.flatten(2).transpose(1, 2)
@@ -1007,7 +1007,7 @@ class conditionalZigzag(CompressionModel):
         # print('hyper_up_x4_2',hyper_up_x4_2.shape,Wh)
 
         layer = self.hyper_encoder_layers[1]
-        z, Wh, Ww = layer(hyper_up_x4_2,z, Wh, Ww)
+        z, Wh, Ww = layer(z,hyper_up_x4_2, Wh, Ww)
         z = z.view(-1, Wh, Ww, 192).permute(0, 3, 1, 2).contiguous()
         z = self.hyper_encoder_Conv2(z)
 
@@ -1020,7 +1020,7 @@ class conditionalZigzag(CompressionModel):
         latent_means = self.hyper_decoder_conv_mean1(z_hat)
         latent_means = latent_means.flatten(2).transpose(1, 2)
         layer = self.hyper_decoder_mean[0]
-        latent_means, Wh, Ww = layer(hyper_up_x4_2,latent_means, Wh, Ww)
+        latent_means, Wh, Ww = layer(latent_means, hyper_up_x4_2, Wh, Ww)
         latent_means = latent_means.view(-1, Wh, Ww, 192).permute(0, 3, 1, 2).contiguous()
         latent_means = self.hyper_decoder_conv_mean2(latent_means)
         latent_means = latent_means.flatten(2).transpose(1, 2)
@@ -1028,21 +1028,21 @@ class conditionalZigzag(CompressionModel):
 
         hyper_up_x4 = hyper_up_x4.flatten(2).transpose(1, 2)
         layer = self.hyper_decoder_mean[1]
-        latent_means, Wh, Ww = layer(hyper_up_x4,latent_means, Wh, Ww)
+        latent_means, Wh, Ww = layer(latent_means,hyper_up_x4, Wh, Ww)
         latent_means = latent_means.view(-1, Wh, Ww, 384).permute(0, 3, 1, 2).contiguous()
 
 
         latent_scales = self.hyper_decoder_conv_scale1(z_hat)
         latent_scales = latent_scales.flatten(2).transpose(1, 2)
         layer = self.hyper_decoder_scale[0]
-        latent_scales, Wh, Ww = layer(hyper_up_x4_2,latent_scales, Wh, Ww)
+        latent_scales, Wh, Ww = layer(latent_scales, hyper_up_x4_2,Wh, Ww)
         latent_scales = latent_scales.view(-1, Wh, Ww, 192).permute(0, 3, 1, 2).contiguous()
         latent_scales = self.hyper_decoder_conv_scale2(latent_scales)
         latent_scales = latent_scales.flatten(2).transpose(1, 2)
 
         # hyper_up_x4 = hyper_up_x4.flatten(2).transpose(1, 2)
         layer = self.hyper_decoder_scale[1]
-        latent_scales, Wh, Ww = layer(hyper_up_x4,latent_scales, Wh, Ww)
+        latent_scales, Wh, Ww = layer(latent_scales, hyper_up_x4,Wh, Ww)
         latent_scales = latent_scales.view(-1, Wh, Ww, 384).permute(0, 3, 1, 2).contiguous()
 
 
