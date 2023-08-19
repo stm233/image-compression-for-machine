@@ -136,8 +136,8 @@ class ImageFolder_Czigzag(Dataset):
         up_x4_paths = self.samples[index].parent.parent / 'Large_GAN_x4_decompressed_015_x4'
         up_x4_path = up_x4_paths / self.samples[index].name
         # print(up_x4_path)
-        if up_x4_path.suffix != 'jpg' :
-            up_x4_path = up_x4_path.parent / (up_x4_path.stem + '.jpg')
+        # if up_x4_path.suffix != 'jpg' :
+        #     up_x4_path = up_x4_path.parent / (up_x4_path.stem + '.jpg')
         # up_x4_path = os.path.join(up_x4_paths)
         # print(up_x4_path)
         up_x4 = Image.open(up_x4_path).convert("RGB")

@@ -284,7 +284,7 @@ def parse_args(argv):
     )
     parser.add_argument(
         "-d", "--dataset", type=str, 
-        default='/media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/testfolder/dataset/IRdataset/',
+        default='/data/Dataset/IRdataset2/small/',
         help="Training dataset"
     )
     parser.add_argument(
@@ -297,7 +297,7 @@ def parse_args(argv):
     parser.add_argument(
         "-lr",
         "--learning-rate",
-        default=1e-4,
+        default=1e-5,
         type=float,
         help="Learning rate (default: %(default)s)",
     )
@@ -305,23 +305,23 @@ def parse_args(argv):
         "-n",
         "--num-workers",
         type=int,
-        default=6,
+        default=24,
         help="Dataloaders threads (default: %(default)s)",
     )
     parser.add_argument(
         "--lambda",
         dest="lmbda",
         type=float,
-        default=0.0035,
+        default=0.025,
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=14, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=1, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",
         type=int,
-        default=6,
+        default=1,
         help="Test batch size (default: %(default)s)",
     )
     parser.add_argument(
@@ -334,7 +334,7 @@ def parse_args(argv):
         "--patch-size",
         type=int,
         nargs=3,
-        default=(256, 256),
+        default=(1408, 1408),
         help="Size of the patches to be cropped (default: %(default)s)",
     )
     parser.add_argument("--cuda",  default=True, action="store_true", help="Use cuda")
@@ -342,7 +342,7 @@ def parse_args(argv):
         "--save", action="store_true", default=True, help="Save model to disk"
     )
     parser.add_argument(
-        "--save_path", type=str, default="./save_model/czigzag_0035/", help="Where to Save model"
+        "--save_path", type=str, default="./save_model/czigzag_025/", help="Where to Save model"
     )
     parser.add_argument(
         "--seed", type=float, help="Set random seed for reproducibility"
@@ -357,7 +357,7 @@ def parse_args(argv):
                          default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="",  # ./save_model/czigzag_1/8.ckpt
+                        default="./save_model/czigzag_025/224.ckpt",  # ./save_model/czigzag_1/8.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
     return args
@@ -477,7 +477,7 @@ def main(argv):
             epoch,
             args.clip_max_norm,
         )
-        if epoch % 1 == 0:
+        if epoch % 4 == 0:
             loss = test_epoch(epoch, test_dataloader, net, criterion)
             lr_scheduler.step(loss)
 
