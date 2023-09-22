@@ -297,7 +297,7 @@ def parse_args(argv):
     parser.add_argument(
         "-lr",
         "--learning-rate",
-        default=1e-5,
+        default=3e-5,
         type=float,
         help="Learning rate (default: %(default)s)",
     )
@@ -312,7 +312,7 @@ def parse_args(argv):
         "--lambda",
         dest="lmbda",
         type=float,
-        default=0.025,
+        default=0.014,
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
@@ -342,7 +342,7 @@ def parse_args(argv):
         "--save", action="store_true", default=True, help="Save model to disk"
     )
     parser.add_argument(
-        "--save_path", type=str, default="./save_model/czigzag_025/", help="Where to Save model"
+        "--save_path", type=str, default="./save_model/czigzag_018/", help="Where to Save model"
     )
     parser.add_argument(
         "--seed", type=float, help="Set random seed for reproducibility"
@@ -357,7 +357,7 @@ def parse_args(argv):
                          default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="./save_model/czigzag_025/224.ckpt",  # ./save_model/czigzag_1/8.ckpt
+                        default="./save_model/czigzag_018/300.ckpt",  # ./save_model/czigzag_1/8.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
     return args

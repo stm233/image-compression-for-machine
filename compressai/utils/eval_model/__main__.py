@@ -434,7 +434,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",
-            default='/home/exx/Documents/Tianma/ICM/save_model/czigzag_025/236.ckpt',
+            default='/home/exx/Documents/Tianma/ICM/save_model/czigzag_018/324.ckpt',
             dest="paths",
             type=str,
             nargs="*",
