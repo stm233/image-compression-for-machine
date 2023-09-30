@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from compressai.models import WACNN2,SymmetricalTransFormer6,conditionalZigzag,SymmetricalTransFormer5,\
+from compressai.models import WACNN2,SymmetricalTransFormer7,SymmetricalTransFormer6,conditionalZigzag,SymmetricalTransFormer5,\
     SymmetricalTransFormer4,SymmetricalTransFormer3,SymmetricalTransFormer2,ClipEncoder4,\
     ClipEncoder3, ClipEncoder, SymmetricalTransFormer, WACNN
 
@@ -29,6 +29,7 @@ models = {
     'stf7': SymmetricalTransFormer4,
     'stf8': SymmetricalTransFormer5,
     'stf9': SymmetricalTransFormer6,
+    'stf10': SymmetricalTransFormer7,
     'czigzag': conditionalZigzag, 
     'cnn': WACNN,
     'cnn2': WACNN2,

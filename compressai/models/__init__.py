@@ -22,6 +22,7 @@ from .stf6 import SymmetricalTransFormer3
 from .stf7 import SymmetricalTransFormer4
 from .stf8 import SymmetricalTransFormer5
 from .stf9 import SymmetricalTransFormer6
+from .stf10 import SymmetricalTransFormer7
 from .czigzag import conditionalZigzag
 from .cnn import WACNN
 from .cnn2 import WACNN2

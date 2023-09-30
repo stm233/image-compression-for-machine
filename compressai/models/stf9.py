@@ -4,11 +4,11 @@ import torch.nn.functional as F
 import numpy as np
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from .utils import conv, update_registered_buffers, deconv
-
+from compressai.layers import GDN
 import torch.nn as nn
 from compressai.entropy_models import EntropyBottleneck, GaussianConditional
 from compressai.ans import BufferedRansEncoder, RansDecoder
-from compressai.layers import conv3x3, subpel_conv3x3
+from compressai.layers import conv3x3, subpel_conv3x3, Win_noShift_Attention
 from compressai.ops import ste_round
 from .base import CompressionModel
 
@@ -536,30 +536,30 @@ class SymmetricalTransFormer6(CompressionModel):
         #
         #     self.sigma_Swin2.append(sigma_layer)
         #
-        # LRP_depths = [2,6]
-        # self.num_LRP = len(LRP_depths)
-        # self.LRP_Swin2 = nn.ModuleList()
-        # for i in range(num_slices*4):
-        #     LRP_layer = nn.ModuleList()
-        #     for i_layer in range(self.num_LRP):
-        #         layer = BasicLayer(
-        #             dim=int(384 //self.num_slices),
-        #             depth=LRP_depths[i_layer],
-        #             num_heads=4,
-        #             window_size=8,
-        #             mlp_ratio=mlp_ratio,
-        #             qkv_bias=qkv_bias,
-        #             qk_scale=qk_scale,
-        #             drop=drop_rate,
-        #             attn_drop=attn_drop_rate,
-        #             drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
-        #             norm_layer=norm_layer,
-        #             downsample= None,
-        #             use_checkpoint=use_checkpoint,
-        #             inverse=True)
-        #         LRP_layer.append(layer)
-        #
-        #     self.LRP_Swin2.append(LRP_layer)
+        LRP_depths = [2,6]
+        self.num_LRP = len(LRP_depths)
+        self.LRP_Swin2 = nn.ModuleList()
+        for i in range(num_slices*4):
+            LRP_layer = nn.ModuleList()
+            for i_layer in range(self.num_LRP):
+                layer = BasicLayer(
+                    dim=int(384 //self.num_slices),
+                    depth=LRP_depths[i_layer],
+                    num_heads=4,
+                    window_size=8,
+                    mlp_ratio=mlp_ratio,
+                    qkv_bias=qkv_bias,
+                    qk_scale=qk_scale,
+                    drop=drop_rate,
+                    attn_drop=attn_drop_rate,
+                    drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
+                    norm_layer=norm_layer,
+                    downsample= None,
+                    use_checkpoint=use_checkpoint,
+                    inverse=True)
+                LRP_layer.append(layer)
+
+            self.LRP_Swin2.append(LRP_layer)
 
         self.end_conv = nn.Sequential(nn.Conv2d(embed_dim, embed_dim * patch_size ** 2, kernel_size=5, stride=1, padding=2),
                                       nn.PixelShuffle(patch_size),
@@ -567,9 +567,32 @@ class SymmetricalTransFormer6(CompressionModel):
                                       )
 
         num_features = [int(embed_dim * 2 ** i) for i in range(self.num_layers)]
+
         self.num_features = num_features
-        self.g_a = None
-        self.g_s = None
+        N = 192
+        M = 384
+        self.g_a = nn.Sequential(
+            conv(3, N, kernel_size=5, stride=2),
+            GDN(N),
+            conv(N, N, kernel_size=5, stride=2),
+            GDN(N),
+            Win_noShift_Attention(dim=N, num_heads=8, window_size=8, shift_size=4),
+            conv(N, N, kernel_size=5, stride=2),
+            GDN(N),
+            conv(N, M, kernel_size=5, stride=2),
+            Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+        )
+        self.g_s = nn.Sequential(
+            Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+            deconv(M, N, kernel_size=5, stride=2),
+            GDN(N, inverse=True),
+            deconv(N, N, kernel_size=5, stride=2),
+            GDN(N, inverse=True),
+            Win_noShift_Attention(dim=N, num_heads=8, window_size=8, shift_size=4),
+            deconv(N, N, kernel_size=5, stride=2),
+            GDN(N, inverse=True),
+            deconv(N, 3, kernel_size=5, stride=2),
+        )
 
         self.h_a = nn.Sequential(
             conv3x3(384, 384),
@@ -801,18 +824,20 @@ class SymmetricalTransFormer6(CompressionModel):
         compressH, Teacher_output_features, Teacher_classification, Teacher_regression, Teacher_anchors = self.teacherNet(x)
         # compressH, Teacher_output_features, Teacher_classification, Teacher_regression, Teacher_anchors = None, None, None, None, None
         inputIMGs = x.clone()
-        x = self.patch_embed(x)
+        # x = self.patch_embed(x)
+        #
+        # Wh, Ww = x.size(2), x.size(3)
+        # x = x.flatten(2).transpose(1, 2)
+        # x = self.pos_drop(x)
+        # for i in range(self.num_layers):
+        #     layer = self.layers[i]
+        #     x, Wh, Ww = layer(x, Wh, Ww)
+        #
+        # y = x
+        y = self.g_a(x)
 
-        Wh, Ww = x.size(2), x.size(3)
-        x = x.flatten(2).transpose(1, 2)
-        x = self.pos_drop(x)
-        for i in range(self.num_layers):
-            layer = self.layers[i]
-            x, Wh, Ww = layer(x, Wh, Ww)
-
-        y = x
         C = self.embed_dim * 8
-        y = y.view(-1, Wh, Ww, C).permute(0, 3, 1, 2).contiguous()
+        # y = y.view(-1, Wh, Ww, C).permute(0, 3, 1, 2).contiguous()
         y_shape = y.shape[2:]
 
         z = self.h_a(y)
@@ -826,6 +851,7 @@ class SymmetricalTransFormer6(CompressionModel):
         B,C,H,W = latent_scales.shape
         number = 2
 
+        # y = y.flatten(2).transpose(1, 2)
         y_zigzag, num_H, num_W = self.ZigzagSplits(y, self.num_slices)
         scales_zigzag, _ , _    = self.ZigzagSplits(latent_scales,self.num_slices)
         means_zigzag, _ , _   = self.ZigzagSplits(latent_means,self.num_slices)
@@ -889,10 +915,10 @@ class SymmetricalTransFormer6(CompressionModel):
             #     lrp1, _, _ = layer(lrp1, (H//number), (W//number))
             #
             # lrp = lrp + lrp1.view(-1, (H//number), (W//number), 384 //self.num_slices).permute(0, 3, 1, 2).contiguous()
-
-
-            lrp = 0.5 * torch.tanh(lrp)
-            y_hat_slice += lrp
+            #
+            #
+            # lrp = 0.5 * torch.tanh(lrp)
+            # y_hat_slice += lrp
 
 
             y_hat_slices.append(y_hat_slice)
@@ -902,12 +928,15 @@ class SymmetricalTransFormer6(CompressionModel):
         y_hat = self.ZigzagReverse(y_hat,self.num_slices, number, number)
         y_likelihoods = torch.cat(y_likelihood, dim=1)
 
-        y_hat = y_hat.permute(0, 2, 3, 1).contiguous().view(-1, Wh*Ww, C)
-        for i in range(self.num_layers):
-            layer = self.syn_layers[i]
-            y_hat, Wh, Ww = layer(y_hat, Wh, Ww)
+        # y_hat = y_hat.permute(0, 2, 3, 1).contiguous().view(-1, Wh*Ww, C)
+        # for i in range(self.num_layers):
+        #     layer = self.syn_layers[i]
+        #     y_hat, Wh, Ww = layer(y_hat, Wh, Ww)
 
-        decompressH = self.end_conv(y_hat.view(-1, Wh, Ww, self.embed_dim).permute(0, 3, 1, 2).contiguous())
+        x_hat = self.g_s(y_hat)
+        decompressH = x_hat
+
+        # decompressH = self.end_conv(y_hat.view(-1, Wh, Ww, self.embed_dim).permute(0, 3, 1, 2).contiguous())
 
         Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(decompressH)
         # y_likelihoods, z_likelihoods, Student_classification, Student_regression = None,None,None,None

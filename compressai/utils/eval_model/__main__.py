@@ -271,7 +271,7 @@ def eval_model(model, filepaths, entropy_estimation=True, half=False, recon_path
             # bpp = 0
             bpps += float(bpp)
             pixels += int(num_pixels)
-            # print(index,'/',len(filepaths), 'bpp = ',bpp,'pixels = ',num_pixels)
+            print(index,'/',len(filepaths), 'bpp = ',bpp,'pixels = ',num_pixels)
             # print('{}/{}'.format(index, len(filepaths)), end='\r')
 
             scores = scores.cpu()
@@ -301,8 +301,8 @@ def eval_model(model, filepaths, entropy_estimation=True, half=False, recon_path
                         'score': float(score),
                         'bbox': box.tolist(),
                     }
-                    print(index, '/', len(filepaths), 'bpp = ', float(bpp), 'pixels = ', num_pixels,'category_id',
-                          filepaths.label_to_coco_label(label), 'score = ',float(score),'bbox', box.tolist() )
+                    # print(index, '/', len(filepaths), 'bpp = ', float(bpp), 'pixels = ', num_pixels,'category_id',
+                    #       filepaths.label_to_coco_label(label), 'score = ',float(score),'bbox', box.tolist() )
                     # append detection to results
                     results.append(image_result)
                     # json.dump(image_result, open('{}_bbox_results.json'.format(filepaths.set_name), 'a+'), indent=4)
@@ -393,12 +393,13 @@ def setup_args():
     # original : /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/supervised-compression-main/dataset/coco2017/
     # BGP : /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/BPG_val2017/decompress/qp41
     # VTM :  /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/val2017/decompress
-    parent_parser.add_argument("-d", "--dataset",default='/data/Dataset/testdata/kodim/original/', type=str, help="dataset path")
+    # /data/Dataset/testdata/kodim/original/
+    parent_parser.add_argument("-d", "--dataset",default='/data/Dataset/coco2017/', type=str, help="dataset path")
     parent_parser.add_argument("-r", "--recon_path", type=str, default="/home/exx/Documents/Tianma/ICM/save_model/decodedImages/", help="where to save recon img")
     parent_parser.add_argument(
         "-a",
         "--architecture",
-        default='czigzag',
+        default='stf9', # czigzag
         type=str,
         choices=models.keys(),
         help="model architecture",
@@ -434,7 +435,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",
-            default='/home/exx/Documents/Tianma/ICM/save_model/czigzag_018/324.ckpt',
+            default='/home/exx/Documents/Tianma/ICM/save_model/zigzag_1/22.ckpt',
             dest="paths",
             type=str,
             nargs="*",
