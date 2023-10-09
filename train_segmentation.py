@@ -26,17 +26,22 @@ import torch.optim as optim
 
 from torch.utils.data import DataLoader
 from torchvision import transforms
+import torchvision
+from compressai.models.deeplab.high_utils import ext_transforms as et
 
 from compressai.datasets import ImageFolder
 from compressai.zoo import models
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from PIL import Image
+from PIL import Image, ImageDraw
 import requests
 # from transformers import CLIPProcessor, CLIPVisionModel
 from collections import OrderedDict
 from compressai.models.retinanet.dataloader import CocoDataset, CSVDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, \
     Normalizer
 from compressai.models.retinanet import losses
+from mscoco import COCOSegmentation
+
+
 
 # file_dir = os.path.dirname(__file__)
 # sys.path.append(file_dir)
@@ -49,6 +54,7 @@ class RateDistortionLoss(nn.Module):
         self.mse = nn.MSELoss()
         self.lmbda = lmbda
         self.focalLoss = losses.FocalLoss()
+        self.criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean')
 
     def forward(self, input, output, target):
         N, _, H, W = input.size()
@@ -59,17 +65,13 @@ class RateDistortionLoss(nn.Module):
             (torch.log(likelihoods).sum() / (-math.log(2) * num_pixels))
             for likelihoods in output["likelihoods"].values()
         )
-        out["mse_loss"],out["feature_loss"]  = 0,0
+
         # out["mse_loss"] = self.mse(output["compressH"], output["decompressH"])
         # out["feature_loss"] = self.mse(output["Student_output_features"][0], output["Teacher_output_features"][0]) + \
         #                       self.mse(output["Student_output_features"][1], output["Teacher_output_features"][1]) + \
         #                       self.mse(output["Student_output_features"][2], output["Teacher_output_features"][2])
-        out['obect_loss'] = self.focalLoss(output["Student_classification"],
-                                           output["Student_regression"],
-                                           output["Student_anchors"],
-                                           target)
-        out["loss"] =  0 * (out["mse_loss"] + out["feature_loss"]) + \
-                       self.lmbda * (out['obect_loss'][0] + out['obect_loss'][1]) + 0.1 * out["bpp_loss"]
+        out['obect_loss'] = self.criterion(output['Student_output'], target)
+        out["loss"] =  self.lmbda * (out['obect_loss']) + 0.1 * out["bpp_loss"]
 
         return out
 
@@ -88,6 +90,7 @@ class AverageMeter:
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
 
 
 class CustomDataParallel(nn.DataParallel):
@@ -175,8 +178,7 @@ def train_one_epoch(
     for i, d in enumerate(train_dataloader):
         # d = d.to(device)
         # original_img, up_x4_img = d
-        inputIMG = d['img']
-        annotations = d['annot']
+        inputIMG,annotations = d
         inputIMG = inputIMG.to(device)
         annotations = annotations.to(device)
         # original_img = original_img.to(device)
@@ -210,7 +212,7 @@ def train_one_epoch(
                 # f'\tMSE loss: {out_criterion["mse_loss"].item() :.3f} |'
                 f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
                 # f'\tfeature loss: {out_criterion["feature_loss"].item():.2f} |'
-                f'\tobect loss: {out_criterion["obect_loss"][0].item():.2f} {out_criterion["obect_loss"][1].item():.2f}|'
+                f'\tseg loss: {out_criterion["obect_loss"].item():.2f} |'
                 f"\tAux loss: {aux_loss.item():.2f} |"
                 f"\ttime: {enc_time:.1f}"
             )
@@ -233,8 +235,7 @@ def test_epoch(epoch, test_dataloader, model, criterion):
             # out_net = model(d)
             # out_criterion = criterion(out_net, d)
 
-            inputIMG = d['img']
-            annotations = d['annot']
+            inputIMG,annotations = d
             inputIMG = inputIMG.to(device)
             annotations = annotations.to(device)
 
@@ -249,15 +250,15 @@ def test_epoch(epoch, test_dataloader, model, criterion):
             aux_loss.update(model.aux_loss())
             bpp_loss.update(out_criterion["bpp_loss"])
             loss.update(out_criterion["loss"])
-            mse_loss.update(out_criterion["mse_loss"])
-            objective_loss1.update(out_criterion["obect_loss"][0])
-            objective_loss2.update(out_criterion["obect_loss"][1])
+            # mse_loss.update(out_criterion["mse_loss"])
+            objective_loss1.update(out_criterion["obect_loss"])
+            # objective_loss2.update(out_criterion["obect_loss"][1])
 
     print(
         f"Test epoch {epoch}: Average losses:"
         f"\tLoss: {loss.avg.item():.3f} |"
         # f"\tMSE loss: {mse_loss.avg * 255 :.3f} |"
-        f'\tobect loss: {objective_loss1.avg.item():.2f} {objective_loss2.avg.item():.2f}|'
+        f'\tseg loss: {objective_loss1.avg.item():.2f} |'
         f"\tBpp loss: {bpp_loss.avg:.2f} |"
         f"\tAux loss: {aux_loss.avg:.2f}\n"
     )
@@ -275,7 +276,7 @@ def parse_args(argv):
     parser.add_argument(
         "-m",
         "--model",
-        default="stf9",
+        default="stf10",
         choices=models.keys(),
         help="Model architecture (default: %(default)s)",
     )
@@ -339,7 +340,7 @@ def parse_args(argv):
         "--save", action="store_true", default=True, help="Save model to disk"
     )
     parser.add_argument(
-        "--save_path", type=str, default="./save_model/zigzag_20/", help="Where to Save model"
+        "--save_path", type=str, default="./save_model/zigzag_seg_20/", help="Where to Save model"
     )
     parser.add_argument(
         "--seed", type=float, help="Set random seed for reproducibility"
@@ -351,7 +352,7 @@ def parse_args(argv):
         help="gradient clipping max norm (default: %(default)s",
     )
     parser.add_argument("--teachercheckpoint",
-                         default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
+                         default="./save_model/best_deeplabv3_resnet50_voc_os16.pth",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
                         default="",  # ./save_model/czigzag_1/8.ckpt
@@ -372,6 +373,49 @@ def main(argv):
     #     [transforms.RandomCrop(args.patch_size, pad_if_needed=True), transforms.ToTensor()]
     # )
 
+    train_transform = et.ExtCompose([
+        # et.ExtResize(size=opts.crop_size),
+        et.ExtRandomScale((0.5, 2.0)),
+        et.ExtRandomCrop(size=(384, 384), pad_if_needed=True),
+        et.ExtRandomHorizontalFlip(),
+        et.ExtToTensor(),
+        et.ExtNormalize(mean=[0.485, 0.456, 0.406],
+                        std=[0.229, 0.224, 0.225]),
+    ])
+
+    # train_dataset = torchvision.datasets.CocoDetection(
+    #     root=args.dataset+'val2017',
+    #     annFile=args.dataset+'/annotations/instances_val2017.json',
+    #     transform=train_transform
+    # )
+    #
+    # test_dataset = torchvision.datasets.CocoDetection(
+    #     root=args.dataset+'val2017',
+    #     annFile=args.dataset+'/annotations/instances_val2017.json',
+    #     transform=train_transform
+    # )
+
+    # Define any data transformations you want to apply to the images (e.g., resizing and normalization)
+    # transform = transforms.Compose([
+    #     transforms.Resize((256, 256)),  # Resize the image
+    #     transforms.ToTensor(),  # Convert to a tensor
+    #     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize the image
+    # ])
+    #
+    # # Create an instance of the dataset
+    # train_dataset = CocoSegmentationDataset(args.dataset+'val2017', args.dataset+'/annotations/instances_val2017.json', transform=transform)
+    # test_dataset = CocoSegmentationDataset(args.dataset + 'val2017',
+    #                                         args.dataset + '/annotations/instances_val2017.json', transform=transform)
+
+    # train_dataset = CustomCocoDataset(args.dataset+'val2017', args.dataset+'/annotations/instances_val2017.json', transform=transform)
+    # test_dataset = CustomCocoDataset(args.dataset+'val2017', args.dataset+'/annotations/instances_val2017.json', transform=transform)
+
+    input_transform = transforms.Compose([transforms.ToTensor(),
+                      transforms.Normalize((.485, .456, .406), (.229, .224, .225)),])
+    # Create Dataset
+    train_dataset = COCOSegmentation(root=args.dataset,split='valid', mode= 'train',transform=input_transform)
+    test_dataset = COCOSegmentation(root=args.dataset,split='valid',mode= 'train', transform=input_transform)
+
     # train_transforms = transforms.Compose(
     #     [transforms.CenterCrop(args.patch_size), transforms.ToTensor()]
     # )
@@ -383,34 +427,34 @@ def main(argv):
     # train_dataset = ImageFolder(args.dataset, split="train", transform=train_transforms)
     # test_dataset = ImageFolder(args.dataset, split="test", transform=test_transforms)
 
-    dataset_train = CocoDataset(args.dataset, set_name='val2017',
-                                transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
-    dataset_val = CocoDataset(args.dataset, set_name='val2017',
-                              transform=transforms.Compose([Normalizer(), Resizer()]))
-
-    sampler = AspectRatioBasedSampler(dataset_train, batch_size=args.batch_size, drop_last=True)
-    train_dataloader = DataLoader(dataset_train, num_workers=args.num_workers, collate_fn=collater, batch_sampler=sampler)
-
-    sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=args.test_batch_size, drop_last=False)
-    test_dataloader = DataLoader(dataset_val, num_workers=args.num_workers, collate_fn=collater, batch_sampler=sampler_val)
+    # dataset_train = CocoDataset(args.dataset, set_name='val2017',
+    #                             transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+    # dataset_val = CocoDataset(args.dataset, set_name='val2017',
+    #                           transform=transforms.Compose([Normalizer(), Resizer()]))
+    #
+    # sampler = AspectRatioBasedSampler(dataset_train, batch_size=args.batch_size, drop_last=True)
+    # train_dataloader = DataLoader(dataset_train, num_workers=args.num_workers, collate_fn=collater, batch_sampler=sampler)
+    #
+    # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=args.test_batch_size, drop_last=False)
+    # test_dataloader = DataLoader(dataset_val, num_workers=args.num_workers, collate_fn=collater, batch_sampler=sampler_val)
 
     device = "cuda" if args.cuda and torch.cuda.is_available() else "cpu"
 
-    # train_dataloader = DataLoader(
-    #     train_dataset,
-    #     batch_size=args.batch_size,
-    #     num_workers=args.num_workers,
-    #     shuffle=True,
-    #     pin_memory=(device == "cuda"),
-    # )
-    #
-    # test_dataloader = DataLoader(
-    #     test_dataset,
-    #     batch_size=args.test_batch_size,
-    #     num_workers=args.num_workers,
-    #     shuffle=False,
-    #     pin_memory=(device == "cuda"),
-    # )
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        shuffle=True,
+        pin_memory=(device == "cuda"),
+    )
+
+    test_dataloader = DataLoader(
+        test_dataset,
+        batch_size=args.test_batch_size,
+        num_workers=args.num_workers,
+        shuffle=False,
+        pin_memory=(device == "cuda"),
+    )
 
     net = models[args.model]()
     net = net.to(device)
@@ -433,7 +477,7 @@ def main(argv):
         #     # k = k[13:] # remove 'backbone.body'
         #     k = 'teacherNet.' + k # add our network name
         #     new_state_dict[k]=v
-        net.teacherNet.load_state_dict(checkpoint,strict=False)  #
+        # net.teacherNet.load_state_dict(checkpoint,strict=False)  #
         net.studentNet.load_state_dict(checkpoint, strict=False)
 
     last_epoch = 0
