@@ -41,6 +41,10 @@ from compressai.models.retinanet.dataloader import CocoDataset, Resizer, Normali
 
 from pycocotools.cocoeval import COCOeval
 import gc
+from compressai.models.deeplab.high_utils import ext_transforms as et
+from mscoco import COCOSegmentation
+from compressai.models.deeplab.score import SegmentationMetric
+from torch.utils.data import DataLoader
 
 # from ptflops import get_model_complexity_info
 # from fvcore.nn import flop_count_table
@@ -357,6 +361,65 @@ def eval_model(model, filepaths, entropy_estimation=True, half=False, recon_path
 
     return metrics
 
+def eval_seg_model(model, filepaths, entropy_estimation=True, half=False, recon_path='reconstruction'):
+    device = next(model.parameters()).device
+    metrics = defaultdict(float)
+    # start collecting results
+    results = []
+    image_ids = []
+    bpps = 0
+    pixels = 0
+    metric = SegmentationMetric(21)
+    total_num = 0
+    total_batch = 0
+    sum_mIOU = 0
+
+    with torch.no_grad():
+        for i, d in enumerate(filepaths): # len(filepaths)
+
+            x,target = d
+            input_image = x.to(device)
+            target = target.to(device)
+
+            # input_image = input_image.unsqueeze(0)
+            # input_image = input_image.permute(0, 3, 1, 2).contiguous()
+            num_pixels = input_image.size(0) * input_image.size(2) * input_image.size(3)
+            total_num = total_num + input_image.size(0)
+            total_batch = total_batch + 1
+
+            # macs, params = get_model_complexity_info(model, (3, input_image.size(2), input_image.size(3)), as_strings=True,
+            #                                print_per_layer_stat=True, verbose=True)
+
+            # print('{:<30}  {:<8}'.format('Computational complexity: ', macs))
+            # print('{:<30}  {:<8}'.format('Number of parameters: ', params))
+            # flops = FlopCountAnalysis(model, input_image)
+            # print(flop_count_table(flops))
+            # break
+            # start = time.time()
+            out_net = model.forward(input_image)
+            # elapsed_time = time.time() - start
+            # print("encoding_time",elapsed_time)
+            # break
+            metric.update(out_net['Student_output'], target)
+            pixAcc, mIoU = metric.get()
+            sum_mIOU = sum_mIOU + mIoU
+
+            bpp = sum(
+                    (torch.log(likelihoods).sum() / (-math.log(2) * num_pixels))
+                    for likelihoods in out_net["likelihoods"].values()
+                )
+            # bpp = 0
+            bpps += float(bpp)
+            pixels += int(num_pixels)
+            print(i,'/',len(filepaths), 'bpp = ',bpp,'pixels = ',num_pixels,'mIOU = ',mIoU)
+            # print('{}/{}'.format(index, len(filepaths)), end='\r')
+
+
+    print('average bpp',bpps/total_batch,'average pixels = ',pixels/total_batch,'average mIoU = ',sum_mIOU/total_batch)
+
+
+    return metrics
+
 def eval_model_image_compression(model, filepaths, entropy_estimation=False, half=False, recon_path='reconstruction'):
     device = next(model.parameters()).device
     metrics = defaultdict(float)
@@ -393,13 +456,13 @@ def setup_args():
     # original : /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/supervised-compression-main/dataset/coco2017/
     # BGP : /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/BPG_val2017/decompress/qp41
     # VTM :  /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/val2017/decompress
-    # /data/Dataset/testdata/kodim/original/
-    parent_parser.add_argument("-d", "--dataset",default='/data/Dataset/coco2017/', type=str, help="dataset path")
-    parent_parser.add_argument("-r", "--recon_path", type=str, default="/home/exx/Documents/Tianma/ICM/save_model/decodedImages/", help="where to save recon img")
+    # /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/Model/supervised-compression-main/dataset/coco2017
+    parent_parser.add_argument("-d", "--dataset",default='/media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/Model/supervised-compression-main/dataset/coco2017', type=str, help="dataset path")
+    parent_parser.add_argument("-r", "--recon_path", type=str, default="/home/tianma/Documents/ICM/save_model/decodedImages/", help="where to save recon img")
     parent_parser.add_argument(
         "-a",
         "--architecture",
-        default='stf9', # czigzag
+        default='stf10', # czigzag
         type=str,
         choices=models.keys(),
         help="model architecture",
@@ -435,7 +498,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",
-            default='/home/exx/Documents/Tianma/ICM/save_model/zigzag_1/22.ckpt',
+            default='/home/tianma/Documents/ICM/save_model/zigzag_seg_20/58.ckpt',
             dest="paths",
             type=str,
             nargs="*",
@@ -464,6 +527,48 @@ def main(argv):
             model = model.to("cuda:0")
 
         metrics = eval_model(model, filepaths, args.entropy_estimation, args.half, args.recon_path)
+
+        if args.verbose:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+
+        description = (
+            "entropy estimation" if args.entropy_estimation else args.entropy_coder
+        )
+        output = {
+            "name": args.architecture,
+            "description": f"Inference ({description})",
+            "results": results,
+        }
+
+        print(json.dumps(output, indent=2))
+
+    elif args.architecture == 'stf10':
+        # segmatation task
+        compressai.set_entropy_coder(args.entropy_coder)
+        runs = args.paths
+        opts = (args.architecture,)
+        load_func = load_checkpoint
+        log_fmt = "\rEvaluating {run:s}"
+
+        results = defaultdict(list)
+        model = load_func(*opts, runs)
+        if args.cuda and torch.cuda.is_available():
+            model = model.to("cuda:0")
+
+        input_transform = transforms.Compose([transforms.ToTensor(),
+                                              transforms.Normalize((.485, .456, .406), (.229, .224, .225)), ])
+        # Create Dataset
+        cocodata = COCOSegmentation(root=args.dataset, split='valid', mode='train', transform=input_transform)
+        filepaths = DataLoader(
+            cocodata,
+            batch_size=6,
+            num_workers=4,
+            shuffle=False,
+            pin_memory=False,
+        )
+
+        metrics = eval_seg_model(model, filepaths, args.entropy_estimation, args.half, args.recon_path)
 
         if args.verbose:
             sys.stderr.write("\n")
