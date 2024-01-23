@@ -904,8 +904,8 @@ class SymmetricalTransFormer6(CompressionModel):
         #
         # y = x
         y = self.g_a(x)
-        promot_y = self.promot_g_a(x)
-        y = promot_y + y
+        # promot_y = self.promot_g_a(x)
+        # y = promot_y + y
 
 
         C = self.embed_dim * 8
@@ -913,19 +913,19 @@ class SymmetricalTransFormer6(CompressionModel):
         y_shape = y.shape[2:]
 
         z = self.h_a(y)
-        promot_z = self.promot_h_a(y)
-        z = z + promot_z
+        # promot_z = self.promot_h_a(y)
+        # z = z + promot_z
         _, z_likelihoods = self.entropy_bottleneck(z)
         z_offset = self.entropy_bottleneck._get_medians()
         z_tmp = z - z_offset
         z_hat = ste_round(z_tmp) + z_offset
 
         latent_scales = self.h_scale_s(z_hat)
-        promot_latent_scales = self.promot_h_scale_s(z_hat)
-        latent_scales = latent_scales + promot_latent_scales
+        # promot_latent_scales = self.promot_h_scale_s(z_hat)
+        # latent_scales = latent_scales + promot_latent_scales
         latent_means = self.h_mean_s(z_hat)
-        promot_latent_means = self.promot_h_mean_s(z_hat)
-        latent_means = latent_means + promot_latent_means
+        # promot_latent_means = self.promot_h_mean_s(z_hat)
+        # latent_means = latent_means + promot_latent_means
         B,C,H,W = latent_scales.shape
         number = 2
 
@@ -1013,8 +1013,8 @@ class SymmetricalTransFormer6(CompressionModel):
 
         # x_hat = self.g_s(y_hat)
         h_hat = self.g_s1(y_hat)
-        promot_h_hat = self.promot_g_s(y_hat)
-        h_hat = promot_h_hat + h_hat
+        # promot_h_hat = self.promot_g_s(y_hat)
+        # h_hat = promot_h_hat + h_hat
         decompressImage = self.g_s2(h_hat)
 
         # decompressH = self.end_conv(y_hat.view(-1, Wh, Ww, self.embed_dim).permute(0, 3, 1, 2).contiguous())
