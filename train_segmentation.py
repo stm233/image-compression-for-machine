@@ -118,19 +118,26 @@ def configure_optimizers(net, args):
     #     if n.endswith(".quantiles") and p.requires_grad and not "teacherNet" and not "studentNet" in n
     # }
     # print(parameters)
-    # TrainList = ['mu_Swin','sigma_Swin','LRP_Swin','cc_mean_transforms',
-    #              'cc_scale_transforms','lrp_transforms']
-                 # 'h_mean_s','h_scale_s']
-    NotTrainList = ['teacher'] # ,'student'
+    TrainList = ['promot','student']
     parameters = []
     for name, param in net.named_parameters():
-        boolTraining = True
-        for paraName in NotTrainList:
+        boolTraining = False
+        for paraName in TrainList:
             if paraName in name and param.requires_grad and not name.endswith(".quantiles"):
-                boolTraining = False
+                boolTraining = True
                 continue
         if boolTraining:
             parameters.append(name)
+    # NotTrainList = ['teacher'] # ,'student'
+    # parameters = []
+    # for name, param in net.named_parameters():
+    #     boolTraining = True
+    #     for paraName in NotTrainList:
+    #         if paraName in name and param.requires_grad and not name.endswith(".quantiles"):
+    #             boolTraining = False
+    #             continue
+    #     if boolTraining:
+    #         parameters.append(name)
 
     aux_parameters = []
     for name, param in net.named_parameters():
@@ -201,7 +208,7 @@ def train_one_epoch(
         aux_loss.backward()
         aux_optimizer.step()
 
-        if i % 1000 == 0:
+        if i % 100 == 0:
             enc_time = time.time() - start
             start = time.time()
             print(
@@ -310,16 +317,16 @@ def parse_args(argv):
         "--lambda",
         dest="lmbda",
         type=float,
-        default=20,
+        default=1,
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=6, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=8, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",
         type=int,
-        default=40,
+        default=20,
         help="Test batch size (default: %(default)s)",
     )
     parser.add_argument(
@@ -340,7 +347,7 @@ def parse_args(argv):
         "--save", action="store_true", default=True, help="Save model to disk"
     )
     parser.add_argument(
-        "--save_path", type=str, default="./save_model/zigzag_seg_20/", help="Where to Save model"
+        "--save_path", type=str, default="./save_model/promot_seg_10/", help="Where to Save model"
     )
     parser.add_argument(
         "--seed", type=float, help="Set random seed for reproducibility"
@@ -355,7 +362,7 @@ def parse_args(argv):
                          default="./save_model/best_deeplabv3_resnet50_voc_os16.pth",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="",  # ./save_model/czigzag_1/8.ckpt
+                        default="./save_model/promot_object_20/8.ckpt",  # ./save_model/czigzag_1/8.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
     return args
@@ -478,7 +485,7 @@ def main(argv):
         #     k = 'teacherNet.' + k # add our network name
         #     new_state_dict[k]=v
         # net.teacherNet.load_state_dict(checkpoint,strict=False)  #
-        net.studentNet.load_state_dict(checkpoint, strict=False)
+        net.student_seg_Net.load_state_dict(checkpoint, strict=False)
 
     last_epoch = 0
     if args.checkpoint:  # load from previous checkpoint

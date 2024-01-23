@@ -582,17 +582,27 @@ class SymmetricalTransFormer6(CompressionModel):
             conv(N, M, kernel_size=5, stride=2),
             Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
         )
-        self.g_s = nn.Sequential(
+
+
+
+        self.g_s1 = nn.Sequential(
             Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
             deconv(M, N, kernel_size=5, stride=2),
             GDN(N, inverse=True),
-            deconv(N, N, kernel_size=5, stride=2),
-            GDN(N, inverse=True),
-            Win_noShift_Attention(dim=N, num_heads=8, window_size=8, shift_size=4),
-            deconv(N, N, kernel_size=5, stride=2),
+            deconv(N, 256, kernel_size=5, stride=2),
+            GDN(256, inverse=True),
+            Win_noShift_Attention(dim=256, num_heads=8, window_size=8, shift_size=4),
+            # deconv(N, N, kernel_size=5, stride=2),
+            # GDN(N, inverse=True),
+            # deconv(N, 3, kernel_size=5, stride=2),
+        )
+
+        self.g_s2 = nn.Sequential(
+            deconv(256, N, kernel_size=5, stride=2),
             GDN(N, inverse=True),
             deconv(N, 3, kernel_size=5, stride=2),
         )
+
 
         self.h_a = nn.Sequential(
             conv3x3(384, 384),
@@ -683,6 +693,65 @@ class SymmetricalTransFormer6(CompressionModel):
         # checkpoint = torch.load(teachercheckpoint, map_location='cuda')
         # self.teacherNet.load_state_dict(checkpoint, strict=True)  #
         # self.studentNet.load_state_dict(checkpoint, strict=True)
+
+        self.promot_g_a = nn.Sequential(
+            conv(3, N, kernel_size=5, stride=2),
+            nn.GELU(),
+            conv(N, N, kernel_size=5, stride=2),
+            nn.GELU(),
+            conv(N, N, kernel_size=5, stride=2),
+            nn.GELU(),
+            conv(N, M, kernel_size=5, stride=2),
+            nn.GELU(),
+            Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+        )
+
+        self.promot_g_s = nn.Sequential(
+            Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+            nn.GELU(),
+            deconv(M, N, kernel_size=5, stride=2),
+            nn.GELU(),
+            deconv(N, 256, kernel_size=5, stride=2),
+            # nn.GELU(),
+            # deconv(N, N, kernel_size=5, stride=2),
+            # nn.GELU(),
+            # deconv(N, 3, kernel_size=5, stride=2),
+        )
+
+        self.promot_h_a = nn.Sequential(
+            conv3x3(384, 384),
+            nn.GELU(),
+            conv3x3(384, 336),
+            nn.GELU(),
+            conv3x3(336, 288, stride=2),
+            nn.GELU(),
+            conv3x3(288, 240),
+            nn.GELU(),
+            conv3x3(240, 192, stride=2),
+        )
+
+        self.promot_h_mean_s = nn.Sequential(
+            conv3x3(192, 240),
+            nn.GELU(),
+            subpel_conv3x3(240, 288, 2),
+            nn.GELU(),
+            conv3x3(288, 336),
+            nn.GELU(),
+            subpel_conv3x3(336, 384, 2),
+            nn.GELU(),
+            conv3x3(384, 384),
+        )
+        self.promot_h_scale_s = nn.Sequential(
+            conv3x3(192, 240),
+            nn.GELU(),
+            subpel_conv3x3(240, 288, 2),
+            nn.GELU(),
+            conv3x3(288, 336),
+            nn.GELU(),
+            subpel_conv3x3(336, 384, 2),
+            nn.GELU(),
+            conv3x3(384, 384),
+        )
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
@@ -835,19 +904,28 @@ class SymmetricalTransFormer6(CompressionModel):
         #
         # y = x
         y = self.g_a(x)
+        promot_y = self.promot_g_a(x)
+        y = promot_y + y
+
 
         C = self.embed_dim * 8
         # y = y.view(-1, Wh, Ww, C).permute(0, 3, 1, 2).contiguous()
         y_shape = y.shape[2:]
 
         z = self.h_a(y)
+        promot_z = self.promot_h_a(y)
+        z = z + promot_z
         _, z_likelihoods = self.entropy_bottleneck(z)
         z_offset = self.entropy_bottleneck._get_medians()
         z_tmp = z - z_offset
         z_hat = ste_round(z_tmp) + z_offset
 
         latent_scales = self.h_scale_s(z_hat)
+        promot_latent_scales = self.promot_h_scale_s(z_hat)
+        latent_scales = latent_scales + promot_latent_scales
         latent_means = self.h_mean_s(z_hat)
+        promot_latent_means = self.promot_h_mean_s(z_hat)
+        latent_means = latent_means + promot_latent_means
         B,C,H,W = latent_scales.shape
         number = 2
 
@@ -933,15 +1011,19 @@ class SymmetricalTransFormer6(CompressionModel):
         #     layer = self.syn_layers[i]
         #     y_hat, Wh, Ww = layer(y_hat, Wh, Ww)
 
-        x_hat = self.g_s(y_hat)
-        decompressH = x_hat
+        # x_hat = self.g_s(y_hat)
+        h_hat = self.g_s1(y_hat)
+        promot_h_hat = self.promot_g_s(y_hat)
+        h_hat = promot_h_hat + h_hat
+        decompressImage = self.g_s2(h_hat)
 
         # decompressH = self.end_conv(y_hat.view(-1, Wh, Ww, self.embed_dim).permute(0, 3, 1, 2).contiguous())
 
-        Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(decompressH)
+        Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(h_hat,decompressImage)
         # y_likelihoods, z_likelihoods, Student_classification, Student_regression = None,None,None,None
         # Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(x)
         return {
+            "decompressedImage":decompressImage,
             "compressH": compressH,
             "decompressH": Student_compressH,
             "likelihoods": {"y": y_likelihoods, "z": z_likelihoods},
@@ -978,167 +1060,6 @@ class SymmetricalTransFormer6(CompressionModel):
         net.load_state_dict(state_dict)
         return net
 
-
-    def compress(self, x):
-        x = self.patch_embed(x)
-
-        Wh, Ww = x.size(2), x.size(3)
-        x = x.flatten(2).transpose(1, 2)
-        for i in range(self.num_layers):
-            layer = self.layers[i]
-            x, Wh, Ww = layer(x, Wh, Ww)
-        y = x
-        C = self.embed_dim * 8
-        y = y.view(-1, Wh, Ww, C).permute(0, 3, 1, 2).contiguous()
-        y_shape = y.shape[2:]
-
-        z = self.h_a(y)
-        z_strings = self.entropy_bottleneck.compress(z)
-        z_hat = self.entropy_bottleneck.decompress(z_strings, z.size()[-2:])
-
-        latent_scales = self.h_scale_s(z_hat)
-        latent_means = self.h_mean_s(z_hat)
-
-        y_slices = y.chunk(self.num_slices, 1)
-        y_hat_slices = []
-
-        cdf = self.gaussian_conditional.quantized_cdf.tolist()
-        cdf_lengths = self.gaussian_conditional.cdf_length.reshape(-1).int().tolist()
-        offsets = self.gaussian_conditional.offset.reshape(-1).int().tolist()
-
-        encoder = BufferedRansEncoder()
-        symbols_list = []
-        indexes_list = []
-        y_strings = []
-
-        for slice_index, y_slice in enumerate(y_slices):
-            support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices])
-
-            mean_support = torch.cat([latent_means] + support_slices, dim=1)
-            mu = self.cc_mean_transforms[slice_index](mean_support)
-            mu = mu[:, :, :y_shape[0], :y_shape[1]]
-
-            scale_support = torch.cat([latent_scales] + support_slices, dim=1)
-            scale = self.cc_scale_transforms[slice_index](scale_support)
-            scale = scale[:, :, :y_shape[0], :y_shape[1]]
-
-            mu = mu.permute(0, 2, 3, 1).contiguous().view(-1, Wh*Ww, 32)
-            for i in range(self.num_layers):
-                layer = self.mu_Swin[i]
-                mu, Wh, Ww = layer(mu, Wh, Ww)
-
-            mu = mu.view(-1, Wh, Ww, 32).permute(0, 3, 1, 2).contiguous()
-
-            scale = scale.permute(0, 2, 3, 1).contiguous().view(-1, Wh*Ww, 32)
-            for i in range(self.num_layers):
-                layer = self.sigma_Swin[i]
-                scale, Wh, Ww = layer(scale, Wh, Ww)
-
-            scale = scale.view(-1, Wh, Ww, 32).permute(0, 3, 1, 2).contiguous()
-
-            index = self.gaussian_conditional.build_indexes(scale)
-            y_q_slice = self.gaussian_conditional.quantize(y_slice, "symbols", mu)
-            y_hat_slice = y_q_slice + mu
-
-            symbols_list.extend(y_q_slice.reshape(-1).tolist())
-            indexes_list.extend(index.reshape(-1).tolist())
-
-            lrp_support = torch.cat([mean_support, y_hat_slice], dim=1)
-            lrp = self.lrp_transforms[slice_index](lrp_support)
-
-            lrp = lrp.permute(0, 2, 3, 1).contiguous().view(-1, Wh*Ww, 32)
-            for i in range(self.num_layers):
-                layer = self.LRP_layers[i]
-                lrp, Wh, Ww = layer(lrp, Wh, Ww)
-
-            lrp = lrp.view(-1, Wh, Ww, 32).permute(0, 3, 1, 2).contiguous()
-
-            lrp = 0.5 * torch.tanh(lrp)
-            y_hat_slice += lrp
-
-            y_hat_slices.append(y_hat_slice)
-        encoder.encode_with_indexes(symbols_list, indexes_list, cdf, cdf_lengths, offsets)
-
-        y_string = encoder.flush()
-        y_strings.append(y_string)
-
-        return {"strings": [y_strings, z_strings], "shape": z.size()[-2:]}
-
-    def decompress(self, strings, shape):
-        assert isinstance(strings, list) and len(strings) == 2
-        z_hat = self.entropy_bottleneck.decompress(strings[1], shape)
-        latent_scales = self.h_scale_s(z_hat)
-        latent_means = self.h_mean_s(z_hat)
-
-        y_shape = [z_hat.shape[2] * 4, z_hat.shape[3] * 4]
-        Wh, Ww = y_shape
-        C = self.embed_dim * 8
-
-        y_string = strings[0][0]
-
-        y_hat_slices = []
-        cdf = self.gaussian_conditional.quantized_cdf.tolist()
-        cdf_lengths = self.gaussian_conditional.cdf_length.reshape(-1).int().tolist()
-        offsets = self.gaussian_conditional.offset.reshape(-1).int().tolist()
-
-        decoder = RansDecoder()
-        decoder.set_stream(y_string)
-
-        for slice_index in range(self.num_slices):
-            support_slices = (y_hat_slices if self.max_support_slices < 0 else y_hat_slices[:self.max_support_slices])
-
-            mean_support = torch.cat([latent_means] + support_slices, dim=1)
-            mu = self.cc_mean_transforms[slice_index](mean_support)
-            mu = mu[:, :, :y_shape[0], :y_shape[1]]
-
-            scale_support = torch.cat([latent_scales] + support_slices, dim=1)
-            scale = self.cc_scale_transforms[slice_index](scale_support)
-            scale = scale[:, :, :y_shape[0], :y_shape[1]]
-
-            mu = mu.permute(0, 2, 3, 1).contiguous().view(-1, Wh*Ww, 32)
-            for i in range(self.num_layers):
-                layer = self.mu_layers[i]
-                mu, Wh, Ww = layer(mu, Wh, Ww)
-
-            mu = mu.view(-1, Wh, Ww, 32).permute(0, 3, 1, 2).contiguous()
-
-            scale = scale.permute(0, 2, 3, 1).contiguous().view(-1, Wh*Ww, 32)
-            for i in range(self.num_layers):
-                layer = self.sigma_layers[i]
-                scale, Wh, Ww = layer(scale, Wh, Ww)
-
-            scale = scale.view(-1, Wh, Ww, 32).permute(0, 3, 1, 2).contiguous()
-
-            index = self.gaussian_conditional.build_indexes(scale)
-
-            rv = decoder.decode_stream(index.reshape(-1).tolist(), cdf, cdf_lengths, offsets)
-            rv = torch.Tensor(rv).reshape(1, -1, y_shape[0], y_shape[1])
-            y_hat_slice = self.gaussian_conditional.dequantize(rv, mu)
-
-
-            lrp_support = torch.cat([mean_support, y_hat_slice], dim=1)
-            lrp = self.lrp_transforms[slice_index](lrp_support)
-
-            lrp = lrp.permute(0, 2, 3, 1).contiguous().view(-1, Wh*Ww, 32)
-            for i in range(self.num_layers):
-                layer = self.LRP_layers[i]
-                lrp, Wh, Ww = layer(lrp, Wh, Ww)
-
-            lrp = lrp.view(-1, Wh, Ww, 32).permute(0, 3, 1, 2).contiguous()
-
-            lrp = 0.5 * torch.tanh(lrp)
-            y_hat_slice += lrp
-
-            y_hat_slices.append(y_hat_slice)
-
-        y_hat = torch.cat(y_hat_slices, dim=1)
-        y_hat = y_hat.permute(0, 2, 3, 1).contiguous().view(-1, Wh * Ww, C)
-        for i in range(self.num_layers):
-            layer = self.syn_layers[i]
-            y_hat, Wh, Ww = layer(y_hat, Wh, Ww)
-
-        x_hat = self.end_conv(y_hat.view(-1, Wh, Ww, self.embed_dim).permute(0, 3, 1, 2).contiguous()).clamp_(0, 1)
-        return {"x_hat": x_hat}
 
 
 if __name__ == '__main__':

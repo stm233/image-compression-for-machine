@@ -457,7 +457,7 @@ def setup_args():
     # BGP : /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/BPG_val2017/decompress/qp41
     # VTM :  /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/val2017/decompress
     # /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/Model/supervised-compression-main/dataset/coco2017
-    parent_parser.add_argument("-d", "--dataset",default='/media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/Model/supervised-compression-main/dataset/coco2017', type=str, help="dataset path")
+    parent_parser.add_argument("-d", "--dataset",default='/data/Dataset/coco2017/', type=str, help="dataset path")
     parent_parser.add_argument("-r", "--recon_path", type=str, default="/home/tianma/Documents/ICM/save_model/decodedImages/", help="where to save recon img")
     parent_parser.add_argument(
         "-a",
@@ -498,7 +498,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",
-            default='/home/tianma/Documents/ICM/save_model/zigzag_seg_20/58.ckpt',
+            default='/home/exx/Documents/Tianma/ICM/save_model/promot_seg_10/100.ckpt',
             dest="paths",
             type=str,
             nargs="*",
@@ -562,7 +562,7 @@ def main(argv):
         cocodata = COCOSegmentation(root=args.dataset, split='valid', mode='train', transform=input_transform)
         filepaths = DataLoader(
             cocodata,
-            batch_size=6,
+            batch_size=20,
             num_workers=4,
             shuffle=False,
             pin_memory=False,

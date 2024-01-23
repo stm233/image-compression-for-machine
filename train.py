@@ -199,7 +199,7 @@ def train_one_epoch(
         aux_loss.backward()
         aux_optimizer.step()
 
-        if i % 1000 == 0:
+        if i % 100 == 0:
             enc_time = time.time() - start
             start = time.time()
             print(
@@ -313,12 +313,12 @@ def parse_args(argv):
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=6, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=10, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",
         type=int,
-        default=40,
+        default=20,
         help="Test batch size (default: %(default)s)",
     )
     parser.add_argument(
@@ -339,7 +339,7 @@ def parse_args(argv):
         "--save", action="store_true", default=True, help="Save model to disk"
     )
     parser.add_argument(
-        "--save_path", type=str, default="./save_model/zigzag_20/", help="Where to Save model"
+        "--save_path", type=str, default="./save_model/promot_object_20/", help="Where to Save model"
     )
     parser.add_argument(
         "--seed", type=float, help="Set random seed for reproducibility"
