@@ -388,13 +388,14 @@ class studentResNet(nn.Module):
         # else:
         # compressH = inputs
         #
-        # x = self.conv1(img_batch)
-        # x = self.bn1(x)
-        # x = self.relu(x)
-        # x = self.maxpool(x)
-        #
-        # x1 = self.layer1(x)
-        x1 = img_batch
+        img_batch = x
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x1 = self.layer1(x)
+        # x1 = img_batch
         x2 = self.layer2(x1)
         x3 = self.layer3(x2)
         x4 = self.layer4(x3)
@@ -405,7 +406,7 @@ class studentResNet(nn.Module):
 
         classification = torch.cat([self.classificationModel(feature) for feature in features], dim=1)
 
-        anchors = self.anchors(x)
+        anchors = self.anchors(img_batch)
 
         # retinaLoss = self.focalLoss(classification, regression, anchors, annotations)
         compressH = x1
@@ -452,8 +453,8 @@ class studentResNet(nn.Module):
 
                 finalAnchorBoxesIndexes = torch.cat((finalAnchorBoxesIndexes, finalAnchorBoxesIndexesValue))
                 finalAnchorBoxesCoordinates = torch.cat((finalAnchorBoxesCoordinates, anchorBoxes[anchors_nms_idx]))
-            #
-            # # return [finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates]
+
+            # return [finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates]
 
         return compressH,output_features,classification, regression, anchors, finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates
 
