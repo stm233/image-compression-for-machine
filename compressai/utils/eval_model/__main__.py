@@ -244,7 +244,7 @@ def eval_model(model, filepaths, entropy_estimation=True, half=False, recon_path
     bpps = 0
     pixels = 0
     with torch.no_grad():
-        for index in range(1,500): # len(filepaths)
+        for index in range(1,5000): # len(filepaths)
 
             x = filepaths[index]
             input_image = x['img'].to(device)
@@ -499,7 +499,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",
-            default='/home/tianma/Documents/ICM/save_model/promot_object_20/36.ckpt',
+            default='/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/39.ckpt',
             dest="paths",
             type=str,
             nargs="*",

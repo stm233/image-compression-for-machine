@@ -679,7 +679,9 @@ class SymmetricalTransFormer6(CompressionModel):
             ) for i in range(num_slices*number*number)
         )
         self.entropy_bottleneck = EntropyBottleneck(embed_dim * 4)
+        self.entropy_bottleneck_human = EntropyBottleneck(embed_dim * 4)
         self.gaussian_conditional = GaussianConditional(None)
+        self.gaussian_conditional_human = GaussianConditional(None)
         self._freeze_stages()
 
         self.teacherNet = model.resnet50(num_classes=80, pretrained=False)
@@ -742,6 +744,65 @@ class SymmetricalTransFormer6(CompressionModel):
             conv3x3(384, 384),
         )
         self.promot_h_scale_s = nn.Sequential(
+            conv3x3(192, 240),
+            nn.GELU(),
+            subpel_conv3x3(240, 288, 2),
+            nn.GELU(),
+            conv3x3(288, 336),
+            nn.GELU(),
+            subpel_conv3x3(336, 384, 2),
+            nn.GELU(),
+            conv3x3(384, 384),
+        )
+
+        self.human_g_a = nn.Sequential(
+            conv(6, N, kernel_size=5, stride=2),
+            nn.GELU(),
+            conv(N, N, kernel_size=5, stride=2),
+            nn.GELU(),
+            conv(N, N, kernel_size=5, stride=2),
+            nn.GELU(),
+            conv(N, M, kernel_size=5, stride=2),
+            nn.GELU(),
+            Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+        )
+
+        self.human_g_s = nn.Sequential(
+            Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+            nn.GELU(),
+            deconv(M, N, kernel_size=5, stride=2),
+            nn.GELU(),
+            deconv(N, N, kernel_size=5, stride=2),
+            nn.GELU(),
+            deconv(N, N, kernel_size=5, stride=2),
+            nn.GELU(),
+            deconv(N, 3, kernel_size=5, stride=2),
+        )
+
+        self.human_h_a = nn.Sequential(
+            conv3x3(384, 384),
+            nn.GELU(),
+            conv3x3(384, 336),
+            nn.GELU(),
+            conv3x3(336, 288, stride=2),
+            nn.GELU(),
+            conv3x3(288, 240),
+            nn.GELU(),
+            conv3x3(240, 192, stride=2),
+        )
+
+        self.human_h_mean_s = nn.Sequential(
+            conv3x3(192, 240),
+            nn.GELU(),
+            subpel_conv3x3(240, 288, 2),
+            nn.GELU(),
+            conv3x3(288, 336),
+            nn.GELU(),
+            subpel_conv3x3(336, 384, 2),
+            nn.GELU(),
+            conv3x3(384, 384),
+        )
+        self.human_h_scale_s = nn.Sequential(
             conv3x3(192, 240),
             nn.GELU(),
             subpel_conv3x3(240, 288, 2),
@@ -890,8 +951,8 @@ class SymmetricalTransFormer6(CompressionModel):
 
     def forward(self, x):
         """Forward function."""
-        compressH, Teacher_output_features, Teacher_classification, Teacher_regression, Teacher_anchors = self.teacherNet(x)
-        # compressH, Teacher_output_features, Teacher_classification, Teacher_regression, Teacher_anchors = None, None, None, None, None
+        # compressH, Teacher_output_features, Teacher_classification, Teacher_regression, Teacher_anchors = self.teacherNet(x)
+        compressH, Teacher_output_features, Teacher_classification, Teacher_regression, Teacher_anchors = None, None, None, None, None
         inputIMGs = x.clone()
         # x = self.patch_embed(x)
         #
@@ -1019,14 +1080,41 @@ class SymmetricalTransFormer6(CompressionModel):
 
         # decompressH = self.end_conv(y_hat.view(-1, Wh, Ww, self.embed_dim).permute(0, 3, 1, 2).contiguous())
 
-        Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(h_hat,decompressImage)
+        # Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(h_hat,decompressImage)
         # y_likelihoods, z_likelihoods, Student_classification, Student_regression = None,None,None,None
+        Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = None,None,None,None,None,None,None,None
         # Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(x)
+
+        human_support = torch.cat([inputIMGs, decompressImage], dim=1)
+        human_y = self.human_g_a(human_support)
+
+        # C = self.embed_dim * 8
+        # y = y.view(-1, Wh, Ww, C).permute(0, 3, 1, 2).contiguous()
+        # y_shape = y.shape[2:]
+
+        human_z = self.human_h_a(human_y)
+        # promot_z = self.promot_h_a(y)
+        # z = z + promot_z
+        _, human_z_likelihoods = self.entropy_bottleneck_human(z)
+        human_z_offset = self.entropy_bottleneck_human._get_medians()
+        human_z_tmp = human_z - human_z_offset
+        human_z_hat = ste_round(human_z_tmp) + human_z_offset
+
+        human_latent_scales = self.human_h_scale_s(human_z_hat)
+        human_latent_means = self.human_h_mean_s(human_z_hat)
+
+        _, human_y_likelihood = self.gaussian_conditional_human(human_y, human_latent_scales, human_latent_means)
+
+        # human_y_likelihood.append(y_slice_likelihood)
+        human_y_hat= ste_round(human_y - human_latent_means) + human_latent_means
+
+        human_deimage = self.human_g_s(human_y_hat)
+
         return {
-            "decompressedImage":decompressImage,
+            "decompressedImage":human_deimage,
             "compressH": compressH,
             "decompressH": Student_compressH,
-            "likelihoods": {"y": y_likelihoods, "z": z_likelihoods},
+            "likelihoods": {"y": human_y_likelihood, "z": human_z_likelihoods},
             "Student_output_features": Student_output_features,
             "Teacher_output_features": Teacher_output_features,
             "Student_classification": Student_classification,

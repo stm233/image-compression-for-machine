@@ -61,29 +61,29 @@ class ImageFolder(Dataset):
         """
         img = Image.open(self.samples[index]).convert("RGB")
         # print(self.samples[index].resolve() )
-        up_x4_paths = str(self.samples[index].resolve()).split('/')
-        up_x4_paths[-2] = 'Large_GAN_x4_decompressed_015_x4'
-
-        up_x4_paths = self.samples[index].parent.parent / 'Large_GAN_x4_decompressed_015_x4'
-        up_x4_path = up_x4_paths / self.samples[index].name
+        # up_x4_paths = str(self.samples[index].resolve()).split('/')
+        # up_x4_paths[-2] = 'Large_GAN_x4_decompressed_015_x4'
+        #
+        # up_x4_paths = self.samples[index].parent.parent / 'Large_GAN_x4_decompressed_015_x4'
+        # up_x4_path = up_x4_paths / self.samples[index].name
         # print(up_x4_path)
         # if up_x4_path.suffix != 'jpg' :
         #     up_x4_path = up_x4_path.parent / (up_x4_path.stem + '.jpg')
         # up_x4_path = os.path.join(up_x4_paths)
         # print(up_x4_path)
-        up_x4 = Image.open(up_x4_path).convert("RGB")
+        # up_x4 = Image.open(up_x4_path).convert("RGB")
         # clipProcessor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
         if self.transform:
             # img = clipProcessor(images=img, return_tensors="pt")
             # print(img['pixel_values'].shape)
             img = self.transform(img)
-            up_x4 = self.transform(up_x4)
+            # up_x4 = self.transform(up_x4)
             # print(img.shape)
             
 
-            # return img
-        return img, up_x4
+        return img
+        # return img, up_x4
 
     def __len__(self):
         return len(self.samples)

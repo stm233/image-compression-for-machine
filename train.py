@@ -60,16 +60,18 @@ class RateDistortionLoss(nn.Module):
             for likelihoods in output["likelihoods"].values()
         )
         out["mse_loss"],out["feature_loss"]  = 0,0
-        # out["mse_loss"] = self.mse(output["compressH"], output["decompressH"])
+        out['obect_loss'] = [0,0]
+        out["mse_loss"] = self.mse(input, output["decompressedImage"])
         # out["feature_loss"] = self.mse(output["Student_output_features"][0], output["Teacher_output_features"][0]) + \
         #                       self.mse(output["Student_output_features"][1], output["Teacher_output_features"][1]) + \
         #                       self.mse(output["Student_output_features"][2], output["Teacher_output_features"][2])
-        out['obect_loss'] = self.focalLoss(output["Student_classification"],
-                                           output["Student_regression"],
-                                           output["Student_anchors"],
-                                           target)
-        out["loss"] =  0 * (out["mse_loss"] + out["feature_loss"]) + \
-                       self.lmbda * (out['obect_loss'][0] + out['obect_loss'][1]) + 0.1 * out["bpp_loss"]
+        # out['obect_loss'] = self.focalLoss(output["Student_classification"],
+        #                                    output["Student_regression"],
+        #                                    output["Student_anchors"],
+        #                                    target)
+        out["loss"] =  1 * out["mse_loss"] + 0 * out["feature_loss"] + \
+                       self.lmbda * (out['obect_loss'][0] + out['obect_loss'][1]) + \
+                       0.1 * out["bpp_loss"]
 
         return out
 
@@ -118,13 +120,24 @@ def configure_optimizers(net, args):
     # TrainList = ['mu_Swin','sigma_Swin','LRP_Swin','cc_mean_transforms',
     #              'cc_scale_transforms','lrp_transforms']
                  # 'h_mean_s','h_scale_s']
-    NotTrainList = ['teacher'] # ,'student'
+    # NotTrainList = ['teacher'] # ,'student'
+    # parameters = []
+    # for name, param in net.named_parameters():
+    #     boolTraining = True
+    #     for paraName in NotTrainList:
+    #         if paraName in name and param.requires_grad and not name.endswith(".quantiles"):
+    #             boolTraining = False
+    #             continue
+    #     if boolTraining:
+    #         parameters.append(name)
+
+    TrainList = ['human']
     parameters = []
     for name, param in net.named_parameters():
-        boolTraining = True
-        for paraName in NotTrainList:
+        boolTraining = False
+        for paraName in TrainList:
             if paraName in name and param.requires_grad and not name.endswith(".quantiles"):
-                boolTraining = False
+                boolTraining = True
                 continue
         if boolTraining:
             parameters.append(name)
@@ -173,12 +186,13 @@ def train_one_epoch(
     start = time.time()
 
     for i, d in enumerate(train_dataloader):
-        # d = d.to(device)
+        inputIMG = d.to(device)
+        annotations= []
         # original_img, up_x4_img = d
-        inputIMG = d['img']
-        annotations = d['annot']
-        inputIMG = inputIMG.to(device)
-        annotations = annotations.to(device)
+        # inputIMG = d['img']
+        # annotations = d['annot']
+        # inputIMG = inputIMG.to(device)
+        # annotations = annotations.to(device)
         # original_img = original_img.to(device)
         # up_x4_img = up_x4_img.to(device)
 
@@ -199,7 +213,7 @@ def train_one_epoch(
         aux_loss.backward()
         aux_optimizer.step()
 
-        if i % 100 == 0:
+        if i % 1000 == 0:
             enc_time = time.time() - start
             start = time.time()
             print(
@@ -207,13 +221,16 @@ def train_one_epoch(
                 f"{i*len(inputIMG)}/{len(train_dataloader.dataset)}"
                 f" ({100. * i / len(train_dataloader):.0f}%)]"
                 f'\tLoss: {out_criterion["loss"].item():.3f} |'
-                # f'\tMSE loss: {out_criterion["mse_loss"].item() :.3f} |'
+                f'\tMSE loss: {out_criterion["mse_loss"].item() :.3f} |'
                 f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
                 # f'\tfeature loss: {out_criterion["feature_loss"].item():.2f} |'
-                f'\tobect loss: {out_criterion["obect_loss"][0].item():.2f} {out_criterion["obect_loss"][1].item():.2f}|'
+                # f'\tobect loss: {out_criterion["obect_loss"][0].item():.2f} {out_criterion["obect_loss"][1].item():.2f}|'
                 f"\tAux loss: {aux_loss.item():.2f} |"
                 f"\ttime: {enc_time:.1f}"
             )
+        #
+        # if i > 100:
+        #     break
 
 
 def test_epoch(epoch, test_dataloader, model, criterion):
@@ -229,14 +246,15 @@ def test_epoch(epoch, test_dataloader, model, criterion):
 
     with torch.no_grad():
         for d in test_dataloader:
-            # d = d.to(device)
+            inputIMG = d.to(device)
+            annotations = 0
             # out_net = model(d)
             # out_criterion = criterion(out_net, d)
 
-            inputIMG = d['img']
-            annotations = d['annot']
+            # inputIMG = d['img']
+            # annotations = d['annot']
             inputIMG = inputIMG.to(device)
-            annotations = annotations.to(device)
+            # annotations = annotations.to(device)
 
             out_net = model(inputIMG)
             out_criterion = criterion(inputIMG, out_net, annotations)
@@ -256,8 +274,8 @@ def test_epoch(epoch, test_dataloader, model, criterion):
     print(
         f"Test epoch {epoch}: Average losses:"
         f"\tLoss: {loss.avg.item():.3f} |"
-        # f"\tMSE loss: {mse_loss.avg * 255 :.3f} |"
-        f'\tobect loss: {objective_loss1.avg.item():.2f} {objective_loss2.avg.item():.2f}|'
+        f"\tMSE loss: {mse_loss.avg * 255 ** 2 :.3f} |"
+        # f'\tobect loss: {objective_loss1.avg.item():.2f} {objective_loss2.avg.item():.2f}|'
         f"\tBpp loss: {bpp_loss.avg:.2f} |"
         f"\tAux loss: {aux_loss.avg:.2f}\n"
     )
@@ -281,7 +299,7 @@ def parse_args(argv):
     )
     parser.add_argument(
         "-d", "--dataset", type=str, 
-        default='/data/Dataset/coco2017/',
+        default='/data/Dataset/IRdataset', # /data/Dataset/IRdataset # /data/Dataset/coco2017/
         help="Training dataset"
     )
     parser.add_argument(
@@ -302,23 +320,23 @@ def parse_args(argv):
         "-n",
         "--num-workers",
         type=int,
-        default=6,
+        default=12,
         help="Dataloaders threads (default: %(default)s)",
     )
     parser.add_argument(
         "--lambda",
         dest="lmbda",
         type=float,
-        default=20,
+        default=0.2,
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=5, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=40, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",
         type=int,
-        default=5,
+        default=40,
         help="Test batch size (default: %(default)s)",
     )
     parser.add_argument(
@@ -354,7 +372,7 @@ def parse_args(argv):
                          default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="/home/tianma/Documents/ICM/save_model/promot_object_20/0.ckpt",  # ./save_model/czigzag_1/8.ckpt
+                        default="/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/save.ckpt",  # ./save_model/czigzag_1/8.ckpt
                         # /home/tianma/Documents/ICM/save_model/promot_object_20/16.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
@@ -373,45 +391,45 @@ def main(argv):
     #     [transforms.RandomCrop(args.patch_size, pad_if_needed=True), transforms.ToTensor()]
     # )
 
-    # train_transforms = transforms.Compose(
-    #     [transforms.CenterCrop(args.patch_size), transforms.ToTensor()]
-    # )
+    train_transforms = transforms.Compose(
+        [transforms.CenterCrop(args.patch_size), transforms.ToTensor()]
+    )
+
+    test_transforms = transforms.Compose(
+        [transforms.CenterCrop(args.patch_size), transforms.ToTensor()]
+    )
+
+    train_dataset = ImageFolder(args.dataset, split="train", transform=train_transforms)
+    test_dataset = ImageFolder(args.dataset, split="test", transform=test_transforms)
+
+    # dataset_train = CocoDataset(args.dataset, set_name='train2017',
+    #                             transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+    # dataset_val = CocoDataset(args.dataset, set_name='val2017',
+    #                           transform=transforms.Compose([Normalizer(), Resizer()]))
+
+    # sampler = AspectRatioBasedSampler(dataset_train, batch_size=args.batch_size, drop_last=True)
+    # train_dataloader = DataLoader(dataset_train, num_workers=args.num_workers, collate_fn=collater, batch_sampler=sampler)
     #
-    # test_transforms = transforms.Compose(
-    #     [transforms.CenterCrop(args.patch_size), transforms.ToTensor()]
-    # )
-    #
-    # train_dataset = ImageFolder(args.dataset, split="train", transform=train_transforms)
-    # test_dataset = ImageFolder(args.dataset, split="test", transform=test_transforms)
-
-    dataset_train = CocoDataset(args.dataset, set_name='val2017',
-                                transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
-    dataset_val = CocoDataset(args.dataset, set_name='val2017',
-                              transform=transforms.Compose([Normalizer(), Resizer()]))
-
-    sampler = AspectRatioBasedSampler(dataset_train, batch_size=args.batch_size, drop_last=True)
-    train_dataloader = DataLoader(dataset_train, num_workers=args.num_workers, collate_fn=collater, batch_sampler=sampler)
-
-    sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=args.test_batch_size, drop_last=False)
-    test_dataloader = DataLoader(dataset_val, num_workers=args.num_workers, collate_fn=collater, batch_sampler=sampler_val)
+    # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=args.test_batch_size, drop_last=False)
+    # test_dataloader = DataLoader(dataset_val, num_workers=args.num_workers, collate_fn=collater, batch_sampler=sampler_val)
 
     device = "cuda" if args.cuda and torch.cuda.is_available() else "cpu"
 
-    # train_dataloader = DataLoader(
-    #     train_dataset,
-    #     batch_size=args.batch_size,
-    #     num_workers=args.num_workers,
-    #     shuffle=True,
-    #     pin_memory=(device == "cuda"),
-    # )
-    #
-    # test_dataloader = DataLoader(
-    #     test_dataset,
-    #     batch_size=args.test_batch_size,
-    #     num_workers=args.num_workers,
-    #     shuffle=False,
-    #     pin_memory=(device == "cuda"),
-    # )
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        shuffle=True,
+        pin_memory=(device == "cuda"),
+    )
+
+    test_dataloader = DataLoader(
+        test_dataset,
+        batch_size=args.test_batch_size,
+        num_workers=args.num_workers,
+        shuffle=False,
+        pin_memory=(device == "cuda"),
+    )
 
     net = models[args.model]()
     net = net.to(device)
