@@ -198,7 +198,7 @@ def inference_entropy_estimation(model, x, context, filename, recon_path):
         # print(x_padded.shape,context.shape)
         out_net = model.forward(x_padded,context)
 
-    grid_img = out_net["x_hat"]
+    grid_img = out_net["decompressedImage"]
     grid_img = F.pad(
         grid_img, (-padding_left, -padding_right, -padding_top, -padding_bottom)
     )
@@ -450,6 +450,24 @@ def eval_model_image_compression(model, filepaths, entropy_estimation=False, hal
 
     return metrics
 
+
+def eval_model_hybird_image_compression(model, filepaths, entropy_estimation=False, half=False, recon_path='reconstruction'):
+    device = next(model.parameters()).device
+    metrics = defaultdict(float)
+    for f in filepaths:
+        _filename = f.split("/")[-1]
+
+        x = read_image(f).to(device)
+        context = None
+
+        rv = inference_entropy_estimation(model, x,context , _filename, recon_path)
+        for k, v in rv.items():
+            metrics[k] += v
+    for k, v in metrics.items():
+        metrics[k] = v / len(filepaths)
+
+    return metrics
+
 def setup_args():
     parent_parser = argparse.ArgumentParser()
 
@@ -458,8 +476,8 @@ def setup_args():
     # BGP : /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/BPG_val2017/decompress/qp41
     # VTM :  /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/val2017/decompress
     # /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/Model/supervised-compression-main/dataset/coco2017
-    parent_parser.add_argument("-d", "--dataset",default='/data/Dataset/coco2017/', type=str, help="dataset path")
-    parent_parser.add_argument("-r", "--recon_path", type=str, default="/home/tianma/Documents/ICM/save_model/decodedImages/", help="where to save recon img")
+    parent_parser.add_argument("-d", "--dataset",default='/data/Dataset/kodim/', type=str, help="dataset path")
+    parent_parser.add_argument("-r", "--recon_path", type=str, default="/home/exx/Documents/Tianma/ICM/save_model/decodedImages/", help="where to save recon img")
     parent_parser.add_argument(
         "-a",
         "--architecture",
@@ -499,7 +517,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",
-            default='/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/39.ckpt',
+            default='/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/63.ckpt',
             dest="paths",
             type=str,
             nargs="*",
@@ -513,7 +531,7 @@ def main(argv):
     args = parser.parse_args(argv)
 
     # evaluation the ICM model
-    if args.architecture == 'stf9':
+    if args.architecture == 'stf9object':
         filepaths = CocoDataset(args.dataset, set_name='val2017', transform=transforms.Compose([Normalizer(), Resizer()]))
         compressai.set_entropy_coder(args.entropy_coder)
 
@@ -611,7 +629,9 @@ def main(argv):
 
             model.update(force=True)
 
-        metrics = eval_model_image_compression(model, filepaths, args.entropy_estimation, args.half, args.recon_path)
+        # metrics = eval_model_image_compression(model, filepaths, args.entropy_estimation, args.half, args.recon_path)
+        metrics = eval_model_hybird_image_compression(model, filepaths, args.entropy_estimation, args.half, args.recon_path)
+
         for k, v in metrics.items():
             results[k].append(v)
 

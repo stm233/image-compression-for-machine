@@ -69,9 +69,9 @@ class RateDistortionLoss(nn.Module):
         #                                    output["Student_regression"],
         #                                    output["Student_anchors"],
         #                                    target)
-        out["loss"] =  1 * out["mse_loss"] + 0 * out["feature_loss"] + \
-                       self.lmbda * (out['obect_loss'][0] + out['obect_loss'][1]) + \
-                       0.1 * out["bpp_loss"]
+        out["loss"] =  self.lmbda  * out["mse_loss"] + 0 * out["feature_loss"] + \
+                       0 * (out['obect_loss'][0] + out['obect_loss'][1]) + \
+                       1 * out["bpp_loss"]
 
         return out
 
@@ -327,7 +327,7 @@ def parse_args(argv):
         "--lambda",
         dest="lmbda",
         type=float,
-        default=0.2,
+        default=100,
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
@@ -372,7 +372,7 @@ def parse_args(argv):
                          default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/save.ckpt",  # ./save_model/czigzag_1/8.ckpt
+                        default="/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/63.ckpt",  # ./save_model/czigzag_1/8.ckpt
                         # /home/tianma/Documents/ICM/save_model/promot_object_20/16.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
