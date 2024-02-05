@@ -218,7 +218,7 @@ def inference_entropy_estimation(model, x, context, filename, recon_path):
     #     tmpBPP = torch.log(likelihoods).sum() / (-math.log(2) * num_pixels)
     #     print(tmpBPP)
 
-    reconstruct(grid_img, filename, recon_path)
+    # reconstruct(grid_img, filename, recon_path)
 
     return {
         "psnr": psnr(input_image, grid_img), # out_net["x_hat"]
@@ -476,7 +476,7 @@ def setup_args():
     # BGP : /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/BPG_val2017/decompress/qp41
     # VTM :  /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/val2017/decompress
     # /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/Model/supervised-compression-main/dataset/coco2017
-    parent_parser.add_argument("-d", "--dataset",default='/data/Dataset/kodim/', type=str, help="dataset path")
+    parent_parser.add_argument("-d", "--dataset",default='/home/exx/Documents/Tianma/val2017', type=str, help="dataset path")
     parent_parser.add_argument("-r", "--recon_path", type=str, default="/home/exx/Documents/Tianma/ICM/save_model/decodedImages/", help="where to save recon img")
     parent_parser.add_argument(
         "-a",
@@ -517,7 +517,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",
-            default='/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/63.ckpt',
+            default='/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/1285.ckpt',
             dest="paths",
             type=str,
             nargs="*",

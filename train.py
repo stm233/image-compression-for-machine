@@ -213,7 +213,7 @@ def train_one_epoch(
         aux_loss.backward()
         aux_optimizer.step()
 
-        if i % 1000 == 0:
+        if i % 100 == 0:
             enc_time = time.time() - start
             start = time.time()
             print(
@@ -299,7 +299,7 @@ def parse_args(argv):
     )
     parser.add_argument(
         "-d", "--dataset", type=str, 
-        default='/data/Dataset/IRdataset', # /data/Dataset/IRdataset # /data/Dataset/coco2017/
+        default='/home/exx/Documents/Tianma/', # /data/Dataset/IRdataset # /data/Dataset/coco2017/
         help="Training dataset"
     )
     parser.add_argument(
@@ -327,16 +327,16 @@ def parse_args(argv):
         "--lambda",
         dest="lmbda",
         type=float,
-        default=100,
+        default=800,
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=40, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=36, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",
         type=int,
-        default=40,
+        default=36,
         help="Test batch size (default: %(default)s)",
     )
     parser.add_argument(
@@ -348,7 +348,7 @@ def parse_args(argv):
     parser.add_argument(
         "--patch-size",
         type=int,
-        nargs=3,
+        nargs=2,
         default=(256, 256),
         help="Size of the patches to be cropped (default: %(default)s)",
     )
@@ -372,7 +372,7 @@ def parse_args(argv):
                          default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/63.ckpt",  # ./save_model/czigzag_1/8.ckpt
+                        default="/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/save.ckpt",  # ./save_model/czigzag_1/8.ckpt
                         # /home/tianma/Documents/ICM/save_model/promot_object_20/16.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
@@ -399,8 +399,8 @@ def main(argv):
         [transforms.CenterCrop(args.patch_size), transforms.ToTensor()]
     )
 
-    train_dataset = ImageFolder(args.dataset, split="train", transform=train_transforms)
-    test_dataset = ImageFolder(args.dataset, split="test", transform=test_transforms)
+    train_dataset = ImageFolder(args.dataset, split="val2017", transform=train_transforms)
+    test_dataset = ImageFolder(args.dataset, split="val2017", transform=test_transforms)
 
     # dataset_train = CocoDataset(args.dataset, set_name='train2017',
     #                             transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
@@ -440,7 +440,7 @@ def main(argv):
     #     net = CustomDataParallel(net)
 
     optimizer, aux_optimizer = configure_optimizers(net, args)
-    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min", factor=0.3, patience=6)
+    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min", factor=0.6, patience=6)
     criterion = RateDistortionLoss(lmbda=args.lmbda)
 
     if args.teachercheckpoint:
@@ -504,7 +504,7 @@ def main(argv):
             epoch,
             args.clip_max_norm,
         )
-        if epoch % 1 == 0:
+        if epoch % 5 == 0:
             loss = test_epoch(epoch, test_dataloader, net, criterion)
             lr_scheduler.step(loss)
 

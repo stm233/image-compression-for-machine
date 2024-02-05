@@ -603,6 +603,18 @@ class SymmetricalTransFormer6(CompressionModel):
             deconv(N, 3, kernel_size=5, stride=2),
         )
 
+        self.human_g_s2 = nn.Sequential(
+            Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+            deconv(M, N, kernel_size=5, stride=2),
+            GDN(N, inverse=True),
+            deconv(N, 256, kernel_size=5, stride=2),
+            GDN(256, inverse=True),
+            Win_noShift_Attention(dim=256, num_heads=8, window_size=8, shift_size=4),
+            deconv(256, N, kernel_size=5, stride=2),
+            GDN(N, inverse=True),
+            deconv(N, 3, kernel_size=5, stride=2),
+        )
+
 
         self.h_a = nn.Sequential(
             conv3x3(384, 384),
@@ -763,14 +775,14 @@ class SymmetricalTransFormer6(CompressionModel):
             conv(N, N, kernel_size=5, stride=2),
             nn.GELU(),
             conv(N, M, kernel_size=5, stride=2),
-            nn.GELU(),
-            Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+            # nn.GELU(),
+            # Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
         )
 
         self.human_g_s = nn.Sequential(
-            Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
-            nn.GELU(),
-            deconv(M, N, kernel_size=5, stride=2),
+            # Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+            # nn.GELU(),
+            deconv(M*2, N, kernel_size=5, stride=2),
             nn.GELU(),
             deconv(N, N, kernel_size=5, stride=2),
             nn.GELU(),
@@ -801,6 +813,17 @@ class SymmetricalTransFormer6(CompressionModel):
             subpel_conv3x3(336, 384, 2),
             nn.GELU(),
             conv3x3(384, 384),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+
         )
         self.human_h_scale_s = nn.Sequential(
             conv3x3(192, 240),
@@ -812,6 +835,27 @@ class SymmetricalTransFormer6(CompressionModel):
             subpel_conv3x3(336, 384, 2),
             nn.GELU(),
             conv3x3(384, 384),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+        )
+        self.human_context_decoder = nn.Sequential(
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
         )
 
     def _freeze_stages(self):
@@ -1073,10 +1117,10 @@ class SymmetricalTransFormer6(CompressionModel):
         #     y_hat, Wh, Ww = layer(y_hat, Wh, Ww)
 
         # x_hat = self.g_s(y_hat)
-        h_hat = self.g_s1(y_hat)
+        h_hat1 = self.g_s1(y_hat)
         # promot_h_hat = self.promot_g_s(y_hat)
         # h_hat = promot_h_hat + h_hat
-        decompressImage = self.g_s2(h_hat)
+        decompressImage = self.g_s2(h_hat1)
 
         # decompressH = self.end_conv(y_hat.view(-1, Wh, Ww, self.embed_dim).permute(0, 3, 1, 2).contiguous())
 
@@ -1085,12 +1129,9 @@ class SymmetricalTransFormer6(CompressionModel):
         Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = None,None,None,None,None,None,None,None
         # Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(x)
 
-        human_support = torch.cat([inputIMGs, decompressImage], dim=1)
+        decompressImage2 = self.human_g_s2(y_hat)
+        human_support = torch.cat([inputIMGs, decompressImage2], dim=1)
         human_y = self.human_g_a(human_support)
-
-        # C = self.embed_dim * 8
-        # y = y.view(-1, Wh, Ww, C).permute(0, 3, 1, 2).contiguous()
-        # y_shape = y.shape[2:]
 
         human_z = self.human_h_a(human_y)
         # promot_z = self.promot_h_a(y)
@@ -1108,7 +1149,9 @@ class SymmetricalTransFormer6(CompressionModel):
         # human_y_likelihood.append(y_slice_likelihood)
         human_y_hat= ste_round(human_y - human_latent_means) + human_latent_means
 
-        human_deimage = self.human_g_s(human_y_hat)
+        context = self.human_context_decoder(y_hat)
+        decoder_support = torch.cat([human_y_hat, context], dim=1)
+        human_deimage = self.human_g_s(decoder_support)
 
         return {
             "decompressedImage":human_deimage,
