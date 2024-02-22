@@ -213,7 +213,7 @@ def train_one_epoch(
         aux_loss.backward()
         aux_optimizer.step()
 
-        if i % 100 == 0:
+        if i % 200 == 0:
             enc_time = time.time() - start
             start = time.time()
             print(
@@ -293,7 +293,7 @@ def parse_args(argv):
     parser.add_argument(
         "-m",
         "--model",
-        default="stf9",
+        default="stf11",
         choices=models.keys(),
         help="Model architecture (default: %(default)s)",
     )
@@ -327,16 +327,16 @@ def parse_args(argv):
         "--lambda",
         dest="lmbda",
         type=float,
-        default=800,
+        default=100,
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=36, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=8, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",
         type=int,
-        default=36,
+        default=8,
         help="Test batch size (default: %(default)s)",
     )
     parser.add_argument(
@@ -357,7 +357,7 @@ def parse_args(argv):
         "--save", action="store_true", default=True, help="Save model to disk"
     )
     parser.add_argument(
-        "--save_path", type=str, default="./save_model/promot_object_20/", help="Where to Save model"
+        "--save_path", type=str, default="./save_model/CRC_20/", help="Where to Save model"
     )
     parser.add_argument(
         "--seed", type=float, help="Set random seed for reproducibility"
@@ -372,7 +372,7 @@ def parse_args(argv):
                          default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/save.ckpt",  # ./save_model/czigzag_1/8.ckpt
+                        default="./save_model/CRC_20/300.ckpt",  # ./save_model/czigzag_1/8.ckpt
                         # /home/tianma/Documents/ICM/save_model/promot_object_20/16.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
