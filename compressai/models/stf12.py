@@ -384,7 +384,7 @@ class PatchEmbed(nn.Module):
         return x
 
 
-class ConditionalResidualCoding(CompressionModel):
+class ConditionalResidualCoding2(CompressionModel):
     def __init__(self,
                  pretrain_img_size=256,
                  patch_size=2,
@@ -603,7 +603,7 @@ class ConditionalResidualCoding(CompressionModel):
             deconv(N, 3, kernel_size=5, stride=2),
         )
 
-        self.human_g_s2 = nn.Sequential(
+        self.human_g_enc2 = nn.Sequential(
             Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
             deconv(M, N, kernel_size=5, stride=2),
             GDN(N, inverse=True),
@@ -613,6 +613,18 @@ class ConditionalResidualCoding(CompressionModel):
             deconv(256, N, kernel_size=5, stride=2),
             GDN(N, inverse=True),
             deconv(N, 3, kernel_size=5, stride=2),
+        )
+
+        self.human_g_enc3 = nn.Sequential(
+            Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+            deconv(M, N, kernel_size=3, stride=2),
+            GDN(N, inverse=True),
+            deconv(N, N, kernel_size=3, stride=2),
+            # GDN(N, inverse=True),
+            # Win_noShift_Attention(dim=256, num_heads=8, window_size=8, shift_size=4),
+            # deconv(256, N, kernel_size=5, stride=2),
+            # GDN(N, inverse=True),
+            # deconv(N, 3, kernel_size=5, stride=2),
         )
 
 
@@ -767,28 +779,43 @@ class ConditionalResidualCoding(CompressionModel):
             conv3x3(384, 384),
         )
 
-        self.human_g_a = nn.Sequential(
-            conv(6, N, kernel_size=5, stride=2),
+        self.human_g_a1 = nn.Sequential(
+            conv(6, N, kernel_size=3, stride=2),
             nn.GELU(),
-            conv(N, N, kernel_size=5, stride=2),
-            nn.GELU(),
-            conv(N, N, kernel_size=5, stride=2),
-            nn.GELU(),
-            conv(N, M, kernel_size=5, stride=2),
+            conv(N, N, kernel_size=3, stride=2),
+            # nn.GELU(),
+            # conv(N, N, kernel_size=5, stride=2),
+            # nn.GELU(),
+            # conv(N, M, kernel_size=5, stride=2),
             # nn.GELU(),
             # Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
         )
+        self.human_g_a2 = nn.Sequential(
+            conv(N + N, N, kernel_size=5, stride=2),
+            nn.GELU(),
+            conv(N, M, kernel_size=5, stride=2),
+            nn.GELU(),
+            Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+        )
 
-        self.human_g_s = nn.Sequential(
-            # Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+        self.human_g_s1 = nn.Sequential(
+            Win_noShift_Attention(dim=M*2, num_heads=8, window_size=4, shift_size=2),
+            nn.GELU(),
+            deconv(M*2, N, kernel_size=3, stride=2),
+            nn.GELU(),
+            deconv(N, N, kernel_size=3, stride=2),
             # nn.GELU(),
-            deconv(M*2, N, kernel_size=5, stride=2),
+            # deconv(N, N, kernel_size=5, stride=2),
+            # nn.GELU(),
+            # deconv(N, 3, kernel_size=5, stride=2),
+        )
+
+        self.human_g_s2 = nn.Sequential(
+            deconv(N*2, N, kernel_size=3, stride=2),
             nn.GELU(),
-            deconv(N, N, kernel_size=5, stride=2),
+            conv(N , N, kernel_size=3, stride=1),
             nn.GELU(),
-            deconv(N, N, kernel_size=5, stride=2),
-            nn.GELU(),
-            deconv(N, 3, kernel_size=5, stride=2),
+            deconv(N, 3, kernel_size=3, stride=2),
         )
 
         self.human_h_a = nn.Sequential(
@@ -849,13 +876,28 @@ class ConditionalResidualCoding(CompressionModel):
         self.human_context_decoder = nn.Sequential(
             conv(384, 384, stride=1, kernel_size=3),
             nn.GELU(),
+            # conv(384, 384, stride=1, kernel_size=3),
+            # nn.GELU(),
+            # conv(384, 384, stride=1, kernel_size=3),
+            # nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+            nn.GELU(),
+            conv(384, 384, stride=1, kernel_size=3),
+        )
+
+        self.human_context_decoder2 = nn.Sequential(
             conv(384, 384, stride=1, kernel_size=3),
             nn.GELU(),
             conv(384, 384, stride=1, kernel_size=3),
             nn.GELU(),
-            conv(384, 384, stride=1, kernel_size=3),
+            subpel_conv3x3(384, 192, 2),
             nn.GELU(),
-            conv(384, 384, stride=1, kernel_size=3),
+            subpel_conv3x3(192, 192, 2),
+            # conv(384, 384, stride=1, kernel_size=3),
+            # nn.GELU(),
+            # conv(384, 384, stride=1, kernel_size=3),
+            # nn.GELU(),
+            # conv(384, 384, stride=1, kernel_size=3),
         )
 
     def _freeze_stages(self):
@@ -1129,11 +1171,18 @@ class ConditionalResidualCoding(CompressionModel):
         Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = None,None,None,None,None,None,None,None
         # Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(x)
 
-        decompressImage2 = self.human_g_s2(y_hat)
-        residual1 = decompressImage2 - inputIMGs
-        human_support = torch.cat([decompressImage2, residual1], dim=1)
-        human_y = self.human_g_a(human_support)
+        decompressImage2 = self.human_g_enc2(y_hat)
+        conditionalScale2 = self.human_g_enc3(y_hat)
+        # print(decompressImage2.shape,conditionalScale2.shape,inputIMGs.shape)
 
+        residual1 = decompressImage2 - inputIMGs
+        human_support = torch.cat([inputIMGs, decompressImage2], dim=1)
+        human_y_1 = self.human_g_a1(human_support)
+
+        residual2 = conditionalScale2 - human_y_1
+        human_support2 = torch.cat([human_y_1, conditionalScale2], dim=1)
+
+        human_y = self.human_g_a2(human_support2)
         human_z = self.human_h_a(human_y)
         # promot_z = self.promot_h_a(y)
         # z = z + promot_z
@@ -1152,8 +1201,14 @@ class ConditionalResidualCoding(CompressionModel):
 
         context = self.human_context_decoder(y_hat)
         decoder_support = torch.cat([human_y_hat, context], dim=1)
-        human_deimage = self.human_g_s(decoder_support)
-        human_deimage = human_deimage + decompressImage2
+
+        human_deimage1 = self.human_g_s1(decoder_support)
+        # human_deimage1 = human_deimage1 + conditionalScale2
+
+        context2 = self.human_context_decoder2(y_hat)
+        decoder_support2 = torch.cat([human_deimage1, context2], dim=1)
+        human_deimage = self.human_g_s2(decoder_support2)
+        # human_deimage = human_deimage + decompressImage2
 
         return {
             "decompressedImage":human_deimage,

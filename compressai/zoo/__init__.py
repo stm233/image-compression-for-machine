@@ -15,7 +15,7 @@
 
 from compressai.models import WACNN2,SymmetricalTransFormer7,SymmetricalTransFormer6,conditionalZigzag,SymmetricalTransFormer5,\
     SymmetricalTransFormer4,SymmetricalTransFormer3,SymmetricalTransFormer2,ClipEncoder4,\
-    ClipEncoder3, ClipEncoder, SymmetricalTransFormer, WACNN,ConditionalResidualCoding
+    ClipEncoder3, ClipEncoder, SymmetricalTransFormer, WACNN,ConditionalResidualCoding,ConditionalResidualCoding2,ConditionalResidualCoding3
 
 from .pretrained import load_pretrained as load_state_dict
 
@@ -31,6 +31,8 @@ models = {
     'stf9': SymmetricalTransFormer6,
     'stf10': SymmetricalTransFormer7,
     'stf11': ConditionalResidualCoding,
+    'stf12': ConditionalResidualCoding2,
+    'stf13': ConditionalResidualCoding3,
     'czigzag': conditionalZigzag, 
     'cnn': WACNN,
     'cnn2': WACNN2,

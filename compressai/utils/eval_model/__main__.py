@@ -517,7 +517,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",
-            default='/home/exx/Documents/Tianma/ICM/save_model/promot_object_20/1425.ckpt',
+            default='/home/exx/Documents/Tianma/ICM/save_model/CRC_20/1444.ckpt',
             dest="paths",
             type=str,
             nargs="*",
