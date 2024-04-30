@@ -10,7 +10,7 @@ __all__ = ['SegmentationDataset']
 class SegmentationDataset(object):
     """Segmentation Base Dataset"""
 
-    def __init__(self, root, split, mode, transform, base_size=520, crop_size=448):
+    def __init__(self, root, split, mode, transform, base_size=520, crop_size=384):
         super(SegmentationDataset, self).__init__()
         self.root = root
         self.transform = transform

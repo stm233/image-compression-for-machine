@@ -202,6 +202,10 @@ def inference_entropy_estimation(model, x, context, filename, recon_path):
     grid_img = F.pad(
         grid_img, (-padding_left, -padding_right, -padding_top, -padding_bottom)
     )
+    grid_img2 = out_net["compressH"]
+    grid_img2 = F.pad(
+        grid_img, (-padding_left, -padding_right, -padding_top, -padding_bottom)
+    )
     
     elapsed_time = time.time() - start
 
@@ -219,6 +223,7 @@ def inference_entropy_estimation(model, x, context, filename, recon_path):
     #     print(tmpBPP)
 
     reconstruct(grid_img, filename, recon_path)
+    reconstruct(grid_img2, 'res_'+filename, recon_path)
 
     return {
         "psnr": psnr(input_image, grid_img), # out_net["x_hat"]
@@ -481,7 +486,7 @@ def setup_args():
     parent_parser.add_argument(
         "-a",
         "--architecture",
-        default='stf9', # czigzag
+        default='stf14', # czigzag
         type=str,
         choices=models.keys(),
         help="model architecture",
@@ -517,7 +522,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",
-            default='/home/exx/Documents/Tianma/ICM/save_model/CRC_20/1444.ckpt',
+            default='/home/exx/Documents/Tianma/ICM/save_model/RC/285.ckpt',
             dest="paths",
             type=str,
             nargs="*",

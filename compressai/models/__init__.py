@@ -26,6 +26,7 @@ from .stf10 import SymmetricalTransFormer7
 from .stf11 import ConditionalResidualCoding
 from .stf12 import ConditionalResidualCoding2
 from .stf13 import ConditionalResidualCoding3
+from .stf14 import ResidualCoding
 from .czigzag import conditionalZigzag
 from .cnn import WACNN
 from .cnn2 import WACNN2

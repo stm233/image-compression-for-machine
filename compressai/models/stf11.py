@@ -1130,8 +1130,8 @@ class ConditionalResidualCoding(CompressionModel):
         # Student_compressH, Student_output_features, Student_classification, Student_regression, Student_anchors, scores, labels, boxes = self.studentNet(x)
 
         decompressImage2 = self.human_g_s2(y_hat)
-        residual1 = decompressImage2 - inputIMGs
-        human_support = torch.cat([decompressImage2, residual1], dim=1)
+        # residual1 = decompressImage2 - inputIMGs
+        human_support = torch.cat([inputIMGs, decompressImage2], dim=1)
         human_y = self.human_g_a(human_support)
 
         human_z = self.human_h_a(human_y)
@@ -1153,7 +1153,7 @@ class ConditionalResidualCoding(CompressionModel):
         context = self.human_context_decoder(y_hat)
         decoder_support = torch.cat([human_y_hat, context], dim=1)
         human_deimage = self.human_g_s(decoder_support)
-        human_deimage = human_deimage + decompressImage2
+        # human_deimage = human_deimage + decompressImage2
 
         return {
             "decompressedImage":human_deimage,
