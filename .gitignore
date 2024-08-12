@@ -1,2 +1,5 @@
 /compressai.egg-info/
 /compressai/version.py
+/compressai/_CXX.cpython-38-x86_64-linux-gnu.so
+/compressai/ans.cpython-37m-x86_64-linux-gnu.so
+/compressai/ans.cpython-38-x86_64-linux-gnu.so
