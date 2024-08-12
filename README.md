@@ -14,7 +14,7 @@ conda activate ICM
 pip install compressai
 pip install pybind11
 git clone https://github.com/stm233/image-compression-for-machine.git ICM
-cd image-compression
+cd ICM
 pip install -e .
 pip install -e '.[dev]'
 pip install Cython
