@@ -220,7 +220,7 @@ class ConditionalResidualCoding3(CompressionModel):
 
 
 
-        self.human_h_mean_s = nn.Sequential(
+        self.human_h_mean_s_2 = nn.Sequential(
             conv3x3(192, 240),
             nn.GELU(),
             # subpel_conv3x3(240, 288, 2),
@@ -244,7 +244,7 @@ class ConditionalResidualCoding3(CompressionModel):
             # conv(384, 384, stride=1, kernel_size=3),
 
         )
-        self.human_h_scale_s = nn.Sequential(
+        self.human_h_scale_s_2 = nn.Sequential(
             conv3x3(192, 240),
             nn.GELU(),
             deconv(240, 288, kernel_size=3, stride=2),
@@ -273,7 +273,7 @@ class ConditionalResidualCoding3(CompressionModel):
             conv(384, 384, stride=1, kernel_size=3),
         )
 
-        self.human_context_decoder2 = nn.Sequential(
+        self.human_context_decoder2_2 = nn.Sequential(
             conv(384, 192, stride=1, kernel_size=3),
             nn.GELU(),
             # conv(384, 384, stride=1, kernel_size=3),
@@ -672,8 +672,8 @@ class ConditionalResidualCoding3(CompressionModel):
         human_z_tmp = human_z - human_z_offset
         human_z_hat = ste_round(human_z_tmp) + human_z_offset
 
-        human_latent_scales = self.human_h_scale_s(human_z_hat)
-        human_latent_means = self.human_h_mean_s(human_z_hat)
+        human_latent_scales = self.human_h_scale_s_2(human_z_hat)
+        human_latent_means = self.human_h_mean_s_2(human_z_hat)
 
         _, human_y_likelihood = self.gaussian_conditional_human(human_y, human_latent_scales, human_latent_means)
 
@@ -681,7 +681,7 @@ class ConditionalResidualCoding3(CompressionModel):
         human_y_hat= ste_round(human_y - human_latent_means) + human_latent_means
 
         context = self.human_context_decoder(y_hat)
-        context2 = self.human_context_decoder2(y_hat)
+        context2 = self.human_context_decoder2_2(y_hat)
 
         context3 = self.human_context_decoder3(seg_y_hat)
         context4 = self.human_context_decoder4(seg_y_hat)

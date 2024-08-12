@@ -222,8 +222,8 @@ def inference_entropy_estimation(model, x, context, filename, recon_path):
     #     tmpBPP = torch.log(likelihoods).sum() / (-math.log(2) * num_pixels)
     #     print(tmpBPP)
 
-    reconstruct(grid_img, filename, recon_path)
-    reconstruct(grid_img2, 'res_'+filename, recon_path)
+    # reconstruct(grid_img, filename, recon_path)
+    # reconstruct(grid_img2, 'res_'+filename, recon_path)
 
     return {
         "psnr": psnr(input_image, grid_img), # out_net["x_hat"]
@@ -486,7 +486,7 @@ def setup_args():
     parent_parser.add_argument(
         "-a",
         "--architecture",
-        default='stf14', # czigzag
+        default='stf13', # czigzag
         type=str,
         choices=models.keys(),
         help="model architecture",
@@ -521,8 +521,8 @@ def setup_args():
     )
     parent_parser.add_argument(
             "-p",
-            "--path",
-            default='/home/exx/Documents/Tianma/ICM/save_model/RC/285.ckpt',
+            "--path",# /home/exx/Documents/Tianma/ICM/save_model/RC/
+            default='/data/checkpoint/CRC_2Enhanced/save400_2.ckpt',
             dest="paths",
             type=str,
             nargs="*",

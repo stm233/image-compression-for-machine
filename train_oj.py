@@ -38,6 +38,7 @@ from compressai.models.retinanet.dataloader import CocoDataset, CSVDataset, coll
     Normalizer
 from compressai.models.retinanet import losses
 
+
 # file_dir = os.path.dirname(__file__)
 # sys.path.append(file_dir)
 
@@ -62,16 +63,18 @@ class RateDistortionLoss(nn.Module):
         out["mse_loss"],out["feature_loss"]  = 0,0
         out['obect_loss'] = [0,0]
         out["mse_loss"] = self.mse(input, output["decompressedImage"])
-        # out["feature_loss"] = self.mse(output["Student_output_features"][0], output["Teacher_output_features"][0]) + \
-        #                       self.mse(output["Student_output_features"][1], output["Teacher_output_features"][1]) + \
-        #                       self.mse(output["Student_output_features"][2], output["Teacher_output_features"][2])
+        out["feature_loss"] = self.mse(output["Student_output_features"]["p2"], output["Teacher_output_features"]["p2"]) + \
+                              self.mse(output["Student_output_features"]["p3"], output["Teacher_output_features"]["p3"]) + \
+                              self.mse(output["Student_output_features"]["p4"], output["Teacher_output_features"]["p4"]) + \
+                              self.mse(output["Student_output_features"]["p5"], output["Teacher_output_features"]["p5"]) + \
+                              self.mse(output["Student_output_features"]["p6"], output["Teacher_output_features"]["p6"])
         # out['obect_loss'] = self.focalLoss(output["Student_classification"],
         #                                    output["Student_regression"],
         #                                    output["Student_anchors"],
         #                                    target)
-        out["loss"] =  self.lmbda  * out["mse_loss"] + 0 * out["feature_loss"] + \
+        out["loss"] =  1  * out["mse_loss"] + 1 * out["feature_loss"] + \
                        0 * (out['obect_loss'][0] + out['obect_loss'][1]) + \
-                       1 * out["bpp_loss"]
+                       self.lmbda * out["bpp_loss"]
 
         return out
 
@@ -106,11 +109,11 @@ def configure_optimizers(net, args):
     """Separate parameters for the main optimizer and the auxiliary optimizer.
     Return two optimizers"""
 
-    # parameters = {
-    #     n
-    #     for n, p in net.named_parameters()
-    #     if not n.endswith(".quantiles") and p.requires_grad and not "teacherNet" and not "studentNet" in n
-    # }
+    parameters = {
+        n
+        for n, p in net.named_parameters()
+        if not n.endswith(".quantiles") and p.requires_grad
+    }
     # aux_parameters = {
     #     n
     #     for n, p in net.named_parameters()
@@ -131,16 +134,16 @@ def configure_optimizers(net, args):
     #     if boolTraining:
     #         parameters.append(name)
 
-    TrainList = ['human']
-    parameters = []
-    for name, param in net.named_parameters():
-        boolTraining = False
-        for paraName in TrainList:
-            if paraName in name and param.requires_grad and not name.endswith(".quantiles"):
-                boolTraining = True
-                continue
-        if boolTraining:
-            parameters.append(name)
+    # TrainList = ['human']
+    # parameters = []
+    # for name, param in net.named_parameters():
+    #     boolTraining = False
+    #     for paraName in TrainList:
+    #         if paraName in name and param.requires_grad and not name.endswith(".quantiles"):
+    #             boolTraining = True
+    #             continue
+    #     if boolTraining:
+    #         parameters.append(name)
 
     aux_parameters = []
     for name, param in net.named_parameters():
@@ -223,7 +226,7 @@ def train_one_epoch(
                 f'\tLoss: {out_criterion["loss"].item():.3f} |'
                 f'\tMSE loss: {out_criterion["mse_loss"].item() :.3f} |'
                 f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
-                # f'\tfeature loss: {out_criterion["feature_loss"].item():.2f} |'
+                f'\tfeature loss: {out_criterion["feature_loss"].item():.2f} |'
                 # f'\tobect loss: {out_criterion["obect_loss"][0].item():.2f} {out_criterion["obect_loss"][1].item():.2f}|'
                 f"\tAux loss: {aux_loss.item():.2f} |"
                 f"\ttime: {enc_time:.1f}"
@@ -268,13 +271,15 @@ def test_epoch(epoch, test_dataloader, model, criterion):
             bpp_loss.update(out_criterion["bpp_loss"])
             loss.update(out_criterion["loss"])
             mse_loss.update(out_criterion["mse_loss"])
-            objective_loss1.update(out_criterion["obect_loss"][0])
+            objective_loss1.update(out_criterion["feature_loss"])
             objective_loss2.update(out_criterion["obect_loss"][1])
 
     print(
         f"Test epoch {epoch}: Average losses:"
         f"\tLoss: {loss.avg.item():.3f} |"
         f"\tMSE loss: {mse_loss.avg * 255 ** 2 :.3f} |"
+        f'\tfearure loss: {objective_loss1.avg.item():.2f} |'
+
         # f'\tobect loss: {objective_loss1.avg.item():.2f} {objective_loss2.avg.item():.2f}|'
         f"\tBpp loss: {bpp_loss.avg:.2f} |"
         f"\tAux loss: {aux_loss.avg:.2f}\n"
@@ -293,7 +298,7 @@ def parse_args(argv):
     parser.add_argument(
         "-m",
         "--model",
-        default="stf13",
+        default="oj_ICM",
         choices=models.keys(),
         help="Model architecture (default: %(default)s)",
     )
@@ -312,7 +317,7 @@ def parse_args(argv):
     parser.add_argument(
         "-lr",
         "--learning-rate",
-        default=1e-5,
+        default=1e-4,
         type=float,
         help="Learning rate (default: %(default)s)",
     )
@@ -320,23 +325,23 @@ def parse_args(argv):
         "-n",
         "--num-workers",
         type=int,
-        default=6,
+        default=8,
         help="Dataloaders threads (default: %(default)s)",
     )
     parser.add_argument(
         "--lambda",
         dest="lmbda",
         type=float,
-        default=800,
+        default=10,
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=3, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=48, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",
         type=int,
-        default=3,
+        default=48,
         help="Test batch size (default: %(default)s)",
     )
     parser.add_argument(
@@ -349,7 +354,7 @@ def parse_args(argv):
         "--patch-size",
         type=int,
         nargs=2,
-        default=(512, 512),
+        default=(256, 256),
         help="Size of the patches to be cropped (default: %(default)s)",
     )
     parser.add_argument("--cuda",  default=True, action="store_true", help="Use cuda")
@@ -357,7 +362,7 @@ def parse_args(argv):
         "--save", action="store_true", default=True, help="Save model to disk"
     )
     parser.add_argument(
-        "--save_path", type=str, default="/data/checkpoint/CRC_2Enhanced/", help="Where to Save model"
+        "--save_path", type=str, default="/data/checkpoint/faster_RCNN_ICM/10/", help="Where to Save model"
     )
     parser.add_argument(
         "--seed", type=float, help="Set random seed for reproducibility"
@@ -369,10 +374,10 @@ def parse_args(argv):
         help="gradient clipping max norm (default: %(default)s",
     )
     parser.add_argument("--teachercheckpoint",
-                         default="./save_model/coco_resnet_50_map_0_335_state_dict.pt",  # ./train0008/18.ckpt
+                         default="",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="/data/checkpoint/CRC_2Enhanced/280.ckpt",  # ./save_model/czigzag_1/8.ckpt
+                        default="",  # ./save_model/czigzag_1/8.ckpt
                         #\ /home/exx/Documents/Tianma/ICM/save_model/CRC_20/895.ckpt
                         # /home/tianma/Documents/ICM/save_model/promot_object_20/16.ckpt
                         type=str, help="Path to a checkpoint")
@@ -444,17 +449,7 @@ def main(argv):
     lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min", factor=0.6, patience=6)
     criterion = RateDistortionLoss(lmbda=args.lmbda)
 
-    # if args.teachercheckpoint:
-    #     print("Loading", args.teachercheckpoint)
-    #     checkpoint = torch.load(args.teachercheckpoint, map_location=device)
-    #     # new_state_dict = OrderedDict()
-    #     #
-    #     # for k, v in checkpoint.items():
-    #     #     # k = k[13:] # remove 'backbone.body'
-    #     #     k = 'teacherNet.' + k # add our network name
-    #     #     new_state_dict[k]=v
-    #     net.teacherNet.load_state_dict(checkpoint,strict=False)  #
-    #     net.studentNet.load_state_dict(checkpoint, strict=False)
+
 
     last_epoch = 0
     if args.checkpoint:  # load from previous checkpoint
