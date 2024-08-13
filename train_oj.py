@@ -72,7 +72,7 @@ class RateDistortionLoss(nn.Module):
         #                                    output["Student_regression"],
         #                                    output["Student_anchors"],
         #                                    target)
-        out["loss"] =  1  * out["mse_loss"] + 1 * out["feature_loss"] + \
+        out["loss"] =  1000  * out["mse_loss"] + 1 * out["feature_loss"] + \
                        0 * (out['obect_loss'][0] + out['obect_loss'][1]) + \
                        self.lmbda * out["bpp_loss"]
 
@@ -336,12 +336,12 @@ def parse_args(argv):
         help="Bit-rate distortion parameter (default: %(default)s)",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=48, help="Batch size (default: %(default)s)"
+        "--batch-size", type=int, default=8, help="Batch size (default: %(default)s)"
     )
     parser.add_argument(
         "--test-batch-size",
         type=int,
-        default=48,
+        default=8,
         help="Test batch size (default: %(default)s)",
     )
     parser.add_argument(
@@ -354,7 +354,7 @@ def parse_args(argv):
         "--patch-size",
         type=int,
         nargs=2,
-        default=(256, 256),
+        default=(512, 512),
         help="Size of the patches to be cropped (default: %(default)s)",
     )
     parser.add_argument("--cuda",  default=True, action="store_true", help="Use cuda")
@@ -377,7 +377,7 @@ def parse_args(argv):
                          default="",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="",  # ./save_model/czigzag_1/8.ckpt
+                        default="/data/checkpoint/faster_RCNN_ICM/10/985.ckpt",  # ./save_model/czigzag_1/8.ckpt
                         #\ /home/exx/Documents/Tianma/ICM/save_model/CRC_20/895.ckpt
                         # /home/tianma/Documents/ICM/save_model/promot_object_20/16.ckpt
                         type=str, help="Path to a checkpoint")

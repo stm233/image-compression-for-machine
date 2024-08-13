@@ -142,6 +142,8 @@ def inference(model, x, filename, recon_path):
 @torch.no_grad()
 def inference_entropy_estimation(model, x, context, filename, recon_path):
     input_image = x
+    # resize_transform = transforms.Resize((256, 256))
+    # resized_image = resize_transform(input_image)
     input_image = input_image.unsqueeze(0)
     # begin = 100
     # size = 640
@@ -202,11 +204,11 @@ def inference_entropy_estimation(model, x, context, filename, recon_path):
     grid_img = F.pad(
         grid_img, (-padding_left, -padding_right, -padding_top, -padding_bottom)
     )
-    grid_img2 = out_net["compressH"]
-    grid_img2 = F.pad(
-        grid_img, (-padding_left, -padding_right, -padding_top, -padding_bottom)
-    )
-    
+    # grid_img2 = out_net["compressH"]
+    # grid_img2 = F.pad(
+    #     grid_img, (-padding_left, -padding_right, -padding_top, -padding_bottom)
+    # )
+    #
     elapsed_time = time.time() - start
 
     
@@ -216,18 +218,18 @@ def inference_entropy_estimation(model, x, context, filename, recon_path):
     )
 
     # ms_ssim(x, grid_img, data_range=1.0)
-    print(filename,"bpp", bpp.item(),psnr(input_image, grid_img),ms_ssim(input_image, grid_img, data_range=1.0))
+    # print(filename,"bpp", bpp.item(),psnr(input_image, grid_img),ms_ssim(input_image, grid_img, data_range=1.0))
     # print('num_pixels',num_pixels)
     # for likelihoods in out_net["likelihoods"].values():
     #     tmpBPP = torch.log(likelihoods).sum() / (-math.log(2) * num_pixels)
     #     print(tmpBPP)
 
-    # reconstruct(grid_img, filename, recon_path)
+    reconstruct(grid_img, filename, recon_path)
     # reconstruct(grid_img2, 'res_'+filename, recon_path)
 
     return {
         "psnr": psnr(input_image, grid_img), # out_net["x_hat"]
-        "ms-ssim": ms_ssim(input_image, grid_img, data_range=1.0).item(),
+        # "ms-ssim": ms_ssim(input_image, grid_img, data_range=1.0).item(),
         "bpp": bpp.item(),
         "encoding_time": elapsed_time / 2.0,  # broad estimation
         "decoding_time": elapsed_time / 2.0,
@@ -482,11 +484,11 @@ def setup_args():
     # VTM :  /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/val2017/decompress
     # /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/Model/supervised-compression-main/dataset/coco2017
     parent_parser.add_argument("-d", "--dataset",default='/home/exx/Documents/Tianma/val2017', type=str, help="dataset path")
-    parent_parser.add_argument("-r", "--recon_path", type=str, default="/home/exx/Documents/Tianma/ICM/save_model/decodedImages/", help="where to save recon img")
+    parent_parser.add_argument("-r", "--recon_path", type=str, default="/home/exx/Documents/Tianma/ICM/save_model/deIMG/", help="where to save recon img")
     parent_parser.add_argument(
         "-a",
         "--architecture",
-        default='stf13', # czigzag
+        default='oj_ICM', # czigzag
         type=str,
         choices=models.keys(),
         help="model architecture",
@@ -522,7 +524,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",# /home/exx/Documents/Tianma/ICM/save_model/RC/
-            default='/data/checkpoint/CRC_2Enhanced/save400_2.ckpt',
+            default='/data/checkpoint/faster_RCNN_ICM/10/985.ckpt',
             dest="paths",
             type=str,
             nargs="*",
