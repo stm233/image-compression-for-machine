@@ -37,7 +37,11 @@ from collections import OrderedDict
 from compressai.models.retinanet.dataloader import CocoDataset, CSVDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, \
     Normalizer
 from compressai.models.retinanet import losses
+import torch.nn.functional as F
 
+def psnr(a: torch.Tensor, b: torch.Tensor) -> float:
+    mse = F.mse_loss(a, b)
+    return -10 * math.log10(mse)
 
 # file_dir = os.path.dirname(__file__)
 # sys.path.append(file_dir)
@@ -60,19 +64,27 @@ class RateDistortionLoss(nn.Module):
             (torch.log(likelihoods).sum() / (-math.log(2) * num_pixels))
             for likelihoods in output["likelihoods"].values()
         )
-        out["mse_loss"],out["feature_loss"]  = 0,0
+        # out["mse_loss"],out["feature_loss"]  = 0,0
         out['obect_loss'] = [0,0]
-        out["mse_loss"] = self.mse(input, output["decompressedImage"])
-        out["feature_loss"] = self.mse(output["Student_output_features"]["p2"], output["Teacher_output_features"]["p2"]) + \
-                              self.mse(output["Student_output_features"]["p3"], output["Teacher_output_features"]["p3"]) + \
-                              self.mse(output["Student_output_features"]["p4"], output["Teacher_output_features"]["p4"]) + \
-                              self.mse(output["Student_output_features"]["p5"], output["Teacher_output_features"]["p5"]) + \
-                              self.mse(output["Student_output_features"]["p6"], output["Teacher_output_features"]["p6"])
+        out["mse_loss"] = nn.MSELoss(reduction='none')(input, output["decompressedImage"]).mean()
+        feature_loss_p2 = nn.MSELoss(reduction='none')(output["Student_output_features"]["p2"],
+                                                       output["Teacher_output_features"]["p2"]).mean()
+        feature_loss_p3 = nn.MSELoss(reduction='none')(output["Student_output_features"]["p3"],
+                                                       output["Teacher_output_features"]["p3"]).mean()
+        feature_loss_p4 = nn.MSELoss(reduction='none')(output["Student_output_features"]["p4"],
+                                                       output["Teacher_output_features"]["p4"]).mean()
+        feature_loss_p5 = nn.MSELoss(reduction='none')(output["Student_output_features"]["p5"],
+                                                       output["Teacher_output_features"]["p5"]).mean()
+        feature_loss_p6 = nn.MSELoss(reduction='none')(output["Student_output_features"]["p6"],
+                                                       output["Teacher_output_features"]["p6"]).mean()
+
+        out["feature_loss"] = feature_loss_p2 + feature_loss_p3 + feature_loss_p4 + feature_loss_p5 + feature_loss_p6
+
         # out['obect_loss'] = self.focalLoss(output["Student_classification"],
         #                                    output["Student_regression"],
         #                                    output["Student_anchors"],
         #                                    target)
-        out["loss"] =  1000  * out["mse_loss"] + 1 * out["feature_loss"] + \
+        out["loss"] =  1000  * out["mse_loss"] + 100 * out["feature_loss"] + \
                        0 * (out['obect_loss'][0] + out['obect_loss'][1]) + \
                        self.lmbda * out["bpp_loss"]
 
@@ -216,7 +228,7 @@ def train_one_epoch(
         aux_loss.backward()
         aux_optimizer.step()
 
-        if i % 600 == 0:
+        if i % 200 == 0:
             enc_time = time.time() - start
             start = time.time()
             print(
@@ -224,9 +236,9 @@ def train_one_epoch(
                 f"{i*len(inputIMG)}/{len(train_dataloader.dataset)}"
                 f" ({100. * i / len(train_dataloader):.0f}%)]"
                 f'\tLoss: {out_criterion["loss"].item():.3f} |'
-                f'\tMSE loss: {out_criterion["mse_loss"].item() :.3f} |'
+                f'\tMSE loss: {out_criterion["mse_loss"] :.3f} |'
                 f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
-                f'\tfeature loss: {out_criterion["feature_loss"].item():.2f} |'
+                f'\tfeature loss: {out_criterion["feature_loss"].item()*100:.2f} |'
                 # f'\tobect loss: {out_criterion["obect_loss"][0].item():.2f} {out_criterion["obect_loss"][1].item():.2f}|'
                 f"\tAux loss: {aux_loss.item():.2f} |"
                 f"\ttime: {enc_time:.1f}"
@@ -277,8 +289,8 @@ def test_epoch(epoch, test_dataloader, model, criterion):
     print(
         f"Test epoch {epoch}: Average losses:"
         f"\tLoss: {loss.avg.item():.3f} |"
-        f"\tMSE loss: {mse_loss.avg * 255 ** 2 :.3f} |"
-        f'\tfearure loss: {objective_loss1.avg.item():.2f} |'
+        f"\tPSNR: {-10 * math.log10(mse_loss.avg):.3f} |"
+        f'\tfearure loss: {objective_loss1.avg.item()*100:.2f} |'
 
         # f'\tobect loss: {objective_loss1.avg.item():.2f} {objective_loss2.avg.item():.2f}|'
         f"\tBpp loss: {bpp_loss.avg:.2f} |"
@@ -354,7 +366,7 @@ def parse_args(argv):
         "--patch-size",
         type=int,
         nargs=2,
-        default=(512, 512),
+        default=(512, 576),
         help="Size of the patches to be cropped (default: %(default)s)",
     )
     parser.add_argument("--cuda",  default=True, action="store_true", help="Use cuda")
@@ -377,9 +389,10 @@ def parse_args(argv):
                          default="",  # ./train0008/18.ckpt
                          type=str, help="Path to a checkpoint")
     parser.add_argument("--checkpoint",
-                        default="/data/checkpoint/faster_RCNN_ICM/10/985.ckpt",  # ./save_model/czigzag_1/8.ckpt
+                        default="/data/checkpoint/faster_RCNN_ICM/10/666.ckpt",  # ./save_model/czigzag_1/8.ckpt
                         #\ /home/exx/Documents/Tianma/ICM/save_model/CRC_20/895.ckpt
                         # /home/tianma/Documents/ICM/save_model/promot_object_20/16.ckpt
+                        # /data/checkpoint/faster_RCNN_ICM/10/985.ckpt
                         type=str, help="Path to a checkpoint")
     args = parser.parse_args(argv)
     return args
@@ -396,13 +409,13 @@ def main(argv):
     # train_transforms = transforms.Compose(
     #     [transforms.RandomCrop(args.patch_size, pad_if_needed=True), transforms.ToTensor()]
     # )
-
+    # transforms.CenterCrop(args.patch_size),
     train_transforms = transforms.Compose(
-        [transforms.CenterCrop(args.patch_size), transforms.ToTensor()]
+        [transforms.RandomCrop(args.patch_size, pad_if_needed=True), transforms.ToTensor()]
     )
 
     test_transforms = transforms.Compose(
-        [transforms.CenterCrop(args.patch_size), transforms.ToTensor()]
+        [transforms.RandomCrop(args.patch_size, pad_if_needed=True), transforms.ToTensor()]
     )
 
     train_dataset = ImageFolder(args.dataset, split="val2017", transform=train_transforms)
@@ -500,7 +513,7 @@ def main(argv):
             epoch,
             args.clip_max_norm,
         )
-        if epoch % 5 == 0:
+        if epoch % 1 == 0:
             loss = test_epoch(epoch, test_dataloader, net, criterion)
             lr_scheduler.step(loss)
 

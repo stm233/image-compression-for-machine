@@ -23,7 +23,7 @@ class FasterRCNN_Coding(CompressionModel):
                  depths=[2, 2, 6, 2],
                  num_heads=[3, 6, 12, 24],
                  window_size=4,
-                 num_slices=6,
+                 num_slices=2,
                  Mask_win_size=8,
                  num_sliding = 4,
                  mlp_ratio=4.,
@@ -60,8 +60,8 @@ class FasterRCNN_Coding(CompressionModel):
         self.patch_norm = patch_norm
 
         self.num_slices = num_slices
-        self.max_support_slices = 12
-        self.support_num = 24
+        self.max_support_slices = 4
+        self.support_num = 8
 
         N = 192
         M = 384
@@ -257,7 +257,9 @@ class FasterRCNN_Coding(CompressionModel):
             # scaleInput = scales_zigzag.view(-1,384*number*number,(H//number),(W//number))
             scale_support = torch.cat([scaleInput] + support_slices, dim=1)
             scale = self.cc_scale_transforms2[slice_index](scale_support)
-
+            # print(y_zigzag[:,slice_index,:,:,:].shape)
+            # print(scale.shape)
+            # print(mu.shape)
             _, y_slice_likelihood = self.gaussian_conditional(y_zigzag[:,slice_index,:,:,:], scale, mu)
 
             y_likelihood.append(y_slice_likelihood)

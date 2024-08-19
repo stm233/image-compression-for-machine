@@ -46,9 +46,9 @@ from mscoco import COCOSegmentation
 from compressai.models.deeplab.score import SegmentationMetric
 from torch.utils.data import DataLoader
 
-# from ptflops import get_model_complexity_info
-# from fvcore.nn import flop_count_table
-# from fvcore.nn import FlopCountAnalysis
+from ptflops import get_model_complexity_info
+from fvcore.nn import flop_count_table
+from fvcore.nn import FlopCountAnalysis
 
 torch.backends.cudnn.deterministic = True
 torch.set_num_threads(1)
@@ -142,8 +142,15 @@ def inference(model, x, filename, recon_path):
 @torch.no_grad()
 def inference_entropy_estimation(model, x, context, filename, recon_path):
     input_image = x
-    # resize_transform = transforms.Resize((256, 256))
-    # resized_image = resize_transform(input_image)
+    # First, center crop (if necessary)
+    # crop_size = 512
+    # _, h, w = input_image.shape
+    # top = (h - crop_size) // 2
+    # left = (w - 576) // 2
+    # input_image = input_image[:, top:top + crop_size, left:left + crop_size]
+
+    # resize_transform = transforms.Resize((512, 512))
+    # input_image = resize_transform(input_image)
     input_image = input_image.unsqueeze(0)
     # begin = 100
     # size = 640
@@ -216,9 +223,13 @@ def inference_entropy_estimation(model, x, context, filename, recon_path):
         (torch.log(likelihoods).sum() / (-math.log(2) * num_pixels))
         for likelihoods in out_net["likelihoods"].values()
     )
+    # flops = FlopCountAnalysis(model, x_padded)
+    # print(flop_count_table(flops))
 
     # ms_ssim(x, grid_img, data_range=1.0)
     # print(filename,"bpp", bpp.item(),psnr(input_image, grid_img),ms_ssim(input_image, grid_img, data_range=1.0))
+    print(filename,"bpp", bpp.item(),psnr(input_image, grid_img))
+
     # print('num_pixels',num_pixels)
     # for likelihoods in out_net["likelihoods"].values():
     #     tmpBPP = torch.log(likelihoods).sum() / (-math.log(2) * num_pixels)
@@ -483,7 +494,9 @@ def setup_args():
     # BGP : /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/BPG_val2017/decompress/qp41
     # VTM :  /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/val2017/decompress
     # /media/tianma/0403b42c-caba-4ab7-a362-c335a178175e/Model/supervised-compression-main/dataset/coco2017
-    parent_parser.add_argument("-d", "--dataset",default='/home/exx/Documents/Tianma/val2017', type=str, help="dataset path")
+    # /data/Dataset/coco2017/val2017
+    # /home/exx/Documents/Tianma/val2017
+    parent_parser.add_argument("-d", "--dataset",default='/data/Dataset/coco2017/val2017/', type=str, help="dataset path")
     parent_parser.add_argument("-r", "--recon_path", type=str, default="/home/exx/Documents/Tianma/ICM/save_model/deIMG/", help="where to save recon img")
     parent_parser.add_argument(
         "-a",
@@ -524,7 +537,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",# /home/exx/Documents/Tianma/ICM/save_model/RC/
-            default='/data/checkpoint/faster_RCNN_ICM/10/985.ckpt',
+            default='/data/checkpoint/faster_RCNN_ICM/10/666.ckpt',
             dest="paths",
             type=str,
             nargs="*",
