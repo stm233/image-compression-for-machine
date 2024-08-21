@@ -79,6 +79,19 @@ def mainCNNencoder(N,M):
         Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
     )
 
+def CRC_two_mainCNNencoder(N,M):
+    return nn.Sequential(
+        conv(6, N, kernel_size=5, stride=2),
+        GDN(N),
+        conv(N, N, kernel_size=5, stride=2),
+        GDN(N),
+        Win_noShift_Attention(dim=N, num_heads=8, window_size=8, shift_size=4),
+        conv(N, N, kernel_size=5, stride=2),
+        GDN(N),
+        conv(N, M, kernel_size=5, stride=2),
+        Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
+    )
+
 def mainCNNdecoderPart1(N,M):
     return nn.Sequential(
             Win_noShift_Attention(dim=M, num_heads=8, window_size=4, shift_size=2),
@@ -111,6 +124,20 @@ def mainCNNdecoder(N,M):
             GDN(N, inverse=True),
             deconv(N, 3, kernel_size=5, stride=2),
         )
+
+def CRC_two_mainCNNdecoder(N,M):
+    return nn.Sequential(
+            Win_noShift_Attention(dim=M*2, num_heads=8, window_size=4, shift_size=2),
+            deconv(M*2, N, kernel_size=5, stride=2),
+            GDN(N, inverse=True),
+            deconv(N, 256, kernel_size=5, stride=2),
+            GDN(256, inverse=True),
+            Win_noShift_Attention(dim=256, num_heads=8, window_size=8, shift_size=4),
+            deconv(256, N, kernel_size=5, stride=2),
+            GDN(N, inverse=True),
+            deconv(N, 3, kernel_size=5, stride=2),
+        )
+
 
 def mainCNNcontextScale1(N,M):
     return nn.Sequential(

@@ -29,5 +29,6 @@ from .stf13 import ConditionalResidualCoding3
 from .stf14 import ResidualCoding
 from .czigzag import conditionalZigzag
 from .fasterRCNN_ICM import FasterRCNN_Coding
+from .MaskedRCNN_OBJ_ICM import MaskedRCNN_FasterRCNN_Coding
 from .cnn import WACNN
 from .cnn2 import WACNN2

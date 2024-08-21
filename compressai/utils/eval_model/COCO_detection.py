@@ -9,14 +9,18 @@ from detectron2.evaluation import COCOEvaluator, inference_on_dataset
 #/home/exx/Documents/Tianma/ICM/save_model/deIMG/
 #/data/Dataset/coco2017/val2017
 register_coco_instances("my_dataset_train", {}, "/data/Dataset/coco2017/annotations/instances_train2017.json", "/data/Dataset/coco2017/train2017")
-register_coco_instances("my_dataset_val", {}, "/data/Dataset/coco2017/annotations/instances_val2017.json", "/home/exx/Documents/Tianma/ICM/save_model/deIMG/")
+register_coco_instances("my_dataset_val", {}, "/data/Dataset/coco2017/annotations/instances_val2017.json", "/data/Dataset/coco2017/val2017/")
+# register_coco_instances("my_dataset_val", {}, "/data/Dataset/coco2017/annotations/instances_val2017.json", "/home/exx/Documents/Tianma/ICM/save_model/deIMG/")
 register_coco_instances("my_dataset_test", {}, "/data/Dataset/coco2017/annotations/instances_test2017.json", "/data/Dataset/coco2017/test2017")
 
 #load the config file, configure the threshold value, load weights
 cfg = get_cfg()
-cfg.merge_from_file("/home/exx/Documents/Tianma/ICM/config/faster_rcnn_R_50_FPN_3x.yaml")
+
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
+cfg.merge_from_file("/home/exx/Documents/Tianma/ICM/config/faster_rcnn_R_50_FPN_3x.yaml")
 cfg.MODEL.WEIGHTS = "/home/exx/Documents/Tianma/ICM/save_model/R50-FPN_x3.pkl"
+# cfg.merge_from_file("/home/exx/Documents/Tianma/ICM/config/mask_rcnn_R_50_FPN_3x.yaml")
+# cfg.MODEL.WEIGHTS = "/home/exx/Documents/Tianma/ICM/save_model/Masked_R50_FPNx3.pkl"
 
 # Create predictor
 predictor = DefaultPredictor(cfg)
