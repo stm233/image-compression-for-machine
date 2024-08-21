@@ -63,3 +63,9 @@ stf6 : 2d zigzag + LRCP (latent residual cross-attention prediction)
 stf7 and stf8: different window size of Swin transformer based on stf6
 
 
+### ICM's machine's Checkpoints
+Classification, object detection, and Instance segmentation can be download from Detection2.
+https://github.com/facebookresearch/detectron2/blob/main/MODEL_ZOO.md
+
+
+

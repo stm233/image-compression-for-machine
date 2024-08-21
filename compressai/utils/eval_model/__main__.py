@@ -501,7 +501,7 @@ def setup_args():
     parent_parser.add_argument(
         "-a",
         "--architecture",
-        default='oj_ICM', # czigzag
+        default='seg_oj_ICM', # czigzag
         type=str,
         choices=models.keys(),
         help="model architecture",
@@ -537,7 +537,7 @@ def setup_args():
     parent_parser.add_argument(
             "-p",
             "--path",# /home/exx/Documents/Tianma/ICM/save_model/RC/
-            default='/data/checkpoint/faster_RCNN_ICM/10/1043.ckpt',
+            default='/data/checkpoint/masked_RCNN_oj_ICM/10/1142.ckpt',
             dest="paths",
             type=str,
             nargs="*",
